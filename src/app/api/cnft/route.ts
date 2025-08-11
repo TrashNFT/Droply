@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUmiBubblegum } from '@/lib/solana/umi'
-import { create as createTree } from '@metaplex-foundation/mpl-bubblegum'
+import { createTree } from '@metaplex-foundation/mpl-bubblegum'
 import { generateSigner } from '@metaplex-foundation/umi'
 import { Metaplex, keypairIdentity } from '@metaplex-foundation/js'
 import { Keypair, PublicKey } from '@solana/web3.js'
