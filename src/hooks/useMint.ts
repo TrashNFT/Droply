@@ -220,7 +220,7 @@ export function useMint() {
           throw new Error('Missing metadata URI for Core mint')
         }
         // Use Umi with mpl-core plugin enabled
-        const umi = getUmiCore(network, wallet.adapter)
+        const umi = getUmiCore('mainnet-beta', wallet.adapter)
         const assetSigner = generateSigner(umi)
         const res = await coreCreate(umi, {
           asset: assetSigner,
