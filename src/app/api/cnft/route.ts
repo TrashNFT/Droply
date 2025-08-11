@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUmiBubblegum } from '@/lib/solana/umi'
 import { generateSigner } from '@metaplex-foundation/umi'
-import { Metaplex, keypairIdentity } from '@metaplex-foundation/js'
-import { Keypair, PublicKey } from '@solana/web3.js'
-import { getConnection } from '@/lib/solana/umi'
 
 // POST actions: initTree, mint
 export async function POST(request: NextRequest) {
@@ -35,28 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'mint') {
-      const { network = 'devnet', treeAddress, to, name, uri, sellerFeeBasisPoints = 500, symbol = '' } = body
-      if (!treeAddress || !to || !name || !uri) {
-        return NextResponse.json({ error: 'Missing treeAddress, to, name or uri' }, { status: 400 })
-      }
-      // For server-side mint, use a dedicated signer (same secret as airdrop/reserve or CNFT_WALLET_SECRET)
-      const SECRET = process.env.AIRDROP_WALLET_SECRET || ''
-      if (!SECRET) return NextResponse.json({ error: 'Server cNFT wallet not configured' }, { status: 500 })
-      const kp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SECRET)))
-      const connection = getConnection(network as any)
-      const metaplex = Metaplex.make(connection).use(keypairIdentity(kp))
-      const treePk = new PublicKey(String(treeAddress))
-      const ownerPk = new PublicKey(String(to))
-      const { response, nft } = await metaplex.nfts().createNft({
-        name,
-        uri,
-        sellerFeeBasisPoints: Number(sellerFeeBasisPoints) || 0,
-        tree: treePk,
-        tokenOwner: ownerPk,
-        symbol,
-      } as any)
-      const assetId = (nft as any)?.address?.toBase58 ? (nft as any).address.toBase58() : ((nft as any)?.address || null)
-      return NextResponse.json({ ok: true, signature: response.signature, assetId })
+      return NextResponse.json({ error: 'cNFT mint not supported in this build. Please mint client-side using Umi bubblegum or upgrade server libs.' }, { status: 501 })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
