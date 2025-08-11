@@ -14,7 +14,8 @@ export const getDb = () => {
 
 export const query = async <T = any>(text: string, params: any[] = []): Promise<{ rows: T[] }> => {
   const db = getDb()
-  return db.query(text, params)
+  const res = await db.query(text as any, params as any)
+  return { rows: (res as any)?.rows as T[] }
 }
 
 
