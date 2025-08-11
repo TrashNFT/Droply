@@ -326,7 +326,7 @@ export function CollectionConfig({
                   type="button"
                   className="text-xs text-red-400"
                   onClick={() => {
-                    const creators = (collection.creators || []).filter((_, idx) => idx !== i)
+                    const creators = (collection.creators || []).filter((__unused: any, idx: number) => idx !== i)
                     const updated = { ...collection, creators }
                     setCollection(updated)
                     onUpdate({ collection: updated, creators })
