@@ -197,7 +197,7 @@ export function useMint() {
       })
 
       // Execute the platform fee transfer first, then the actual mint via Metaplex JS
-      const connection = getConnection(network)
+      const connection = getConnection('mainnet-beta')
       const metaplex = Metaplex.make(connection).use(walletAdapterIdentity(wallet.adapter))
       // Platform fee ($1) transfer
       const feeInfo = await mintService.getPlatformFeeInfo()
