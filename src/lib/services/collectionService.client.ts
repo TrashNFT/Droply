@@ -30,7 +30,8 @@ export const deployCollectionClient = async (
     }
 
     const metaplex = createMetaplexClient(walletAdapter, network)
-    const umi = getUmiCore(network, walletAdapter)
+    // getUmiCore is pinned to mainnet-only typings; always pass 'mainnet-beta'
+    const umi = getUmiCore('mainnet-beta', walletAdapter)
     onProgress?.('Uploading assets to Bundlr', 10)
 
     // Use Bundlr client directly to avoid storage confirm timeouts
