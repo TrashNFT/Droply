@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     if (!SECRET) return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
 
     const { network = 'mainnet-beta' } = body
-    const connection = getConnection(network as any)
+    const connection = getConnection('mainnet-beta')
     const kp = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SECRET)))
     const metaplex = Metaplex.make(connection).use(keypairIdentity(kp))
 

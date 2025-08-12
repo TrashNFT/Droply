@@ -347,11 +347,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Create candy machine service with real Solana connection
-    const connection = getConnection(network)
+    const connection = getConnection('mainnet-beta')
     const candyMachineService = createCandyMachineService(connection, mockWallet as any)
 
     // Calculate total cost including platform fee
-    const mintService = createMintService(mockWallet as any, network)
+    const mintService = createMintService(mockWallet as any, 'mainnet-beta')
     const costBreakdown = await mintService.calculateTotalCost(mintPrice, quantity)
     
     // Get platform fee info

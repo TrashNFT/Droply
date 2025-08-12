@@ -41,7 +41,7 @@ export class MintService {
 
   constructor(wallet: WalletAdapter, network: 'mainnet-beta' | 'devnet' = 'mainnet-beta') {
     this.network = network
-    this.connection = getConnection(network)
+    this.connection = getConnection('mainnet-beta')
     this.wallet = wallet
   }
 

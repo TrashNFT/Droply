@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const secret = JSON.parse(AIRDROP_SECRET)
     const kp = Keypair.fromSecretKey(Uint8Array.from(secret))
-    const connection = getConnection(network as any)
+    const connection = getConnection('mainnet-beta')
     const metaplex = Metaplex.make(connection).use(keypairIdentity(kp))
     const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
 

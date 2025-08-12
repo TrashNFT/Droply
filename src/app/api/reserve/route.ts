@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     if (!candyMachineAddress || !to || quantity <= 0) {
       return NextResponse.json({ error: 'Missing candyMachineAddress, to or invalid quantity' }, { status: 400 })
     }
-    const connection = getConnection(network as any)
+    const connection = getConnection('mainnet-beta')
     // Use a single hot wallet for all server-side mints (airdrop/reserve/cNFT)
     const SECRET = process.env.AIRDROP_WALLET_SECRET || ''
     if (!SECRET) return NextResponse.json({ error: 'Server mint wallet not configured' }, { status: 500 })
