@@ -280,6 +280,16 @@ export default function MintPage() {
     }
 
     try {
+      // Require a live phase when phases are configured
+      if (Array.isArray(phases) && phases.length > 0 && !selectedPhase) {
+        toast.error('No live phase currently')
+        return
+      }
+      // Enforce allowlist eligibility when selectedPhase has an allowlist
+      if (!eligibleForSelected) {
+        toast.error('Wallet not eligible for the selected phase')
+        return
+      }
       // Calculate cost breakdown
       const priceForCost = selectedPhase ? Number(selectedPhase.price || 0) : collection.price
       const costBreakdown = await calculateMintCost(priceForCost, mintCount, collection.network)
@@ -445,7 +455,10 @@ export default function MintPage() {
   const selectedPhase: any | null = (selectedPhaseIdx !== null && phases[selectedPhaseIdx]) ? phases[selectedPhaseIdx] : null
   const effectivePrice = selectedPhase ? Number(selectedPhase.price || 0) : collection.price
   const eligibleForSelected = (() => {
-    if (!selectedPhase) return true
+    // If no phases configured, allow
+    if (!Array.isArray(phases) || phases.length === 0) return true
+    // If phases exist but none selected (no live), disallow
+    if (!selectedPhase) return false
     if (!Array.isArray(selectedPhase.allowlist) || selectedPhase.allowlist.length === 0) return true
     const walletStr = typeof publicKey === 'string' ? publicKey : (publicKey as any) || ''
     const normalized = (selectedPhase.allowlist || []).map((a: string) => a.trim())
@@ -673,7 +686,7 @@ export default function MintPage() {
                   </div>
 
                 {connected ? (
-                  <Button onClick={handleMint} disabled={hookMinting || remaining === 0 || !eligibleForSelected} className="w-full" size="lg">
+                  <Button onClick={handleMint} disabled={hookMinting || remaining === 0 || (Array.isArray(phases) && phases.length > 0 && (!selectedPhase || !eligibleForSelected))} className="w-full" size="lg">
                     {hookMinting ? (
                       <>
                         <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
@@ -681,7 +694,7 @@ export default function MintPage() {
                       </>
                     ) : (
                       <>
-                        <Sparkles className="mr-2 h-5 w-5" /> {eligibleForSelected ? `Mint ${mintCount} NFT${mintCount > 1 ? 's' : ''}` : 'Not eligible'}
+                        <Sparkles className="mr-2 h-5 w-5" /> {(Array.isArray(phases) && phases.length > 0 && !selectedPhase) ? 'No live phase' : (eligibleForSelected ? `Mint ${mintCount} NFT${mintCount > 1 ? 's' : ''}` : 'Not eligible')}
                       </>
                     )}
                   </Button>
@@ -747,7 +760,7 @@ export default function MintPage() {
               )}
             </div>
             {connected ? (
-              <Button size="lg" onClick={handleMint} disabled={hookMinting || remaining === 0} className="w-full sm:w-auto">
+              <Button size="lg" onClick={handleMint} disabled={hookMinting || remaining === 0 || (Array.isArray(phases) && phases.length > 0 && (!selectedPhase || !eligibleForSelected))} className="w-full sm:w-auto">
                 {hookMinting ? 'Minting…' : 'Mint Now'}
               </Button>
             ) : (
