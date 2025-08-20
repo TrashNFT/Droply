@@ -741,9 +741,9 @@ export default function MintPage() {
               </span>
             </div>
             <div className="text-xl font-bold">
-              {collection.price === 0 ? '~0.050 SOL' : `${(collection.price * mintCount).toFixed(3)} SOL`}
-              {usdEstimate && collection.price > 0 && (
-                <span className="ml-2 text-sm font-normal text-gray-400">(≈ ${(usdEstimate * collection.price * mintCount).toFixed(2)} USD)</span>
+              {effectivePrice === 0 ? 'FREE' : `${(effectivePrice * mintCount).toFixed(3)} SOL`}
+              {usdEstimate && effectivePrice > 0 && (
+                <span className="ml-2 text-sm font-normal text-gray-400">(≈ ${(usdEstimate * effectivePrice * mintCount).toFixed(2)} USD)</span>
               )}
             </div>
             {connected ? (
@@ -779,9 +779,9 @@ export default function MintPage() {
       <div className="fixed top-[56px] z-30 w-full border-b border-[hsl(var(--border))] bg-[hsl(var(--card))]/85 backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 text-sm text-white">
           <div className="flex items-baseline gap-2">
-            <span className="font-semibold">{collection.price === 0 ? 'FREE' : `${collection.price} SOL`}</span>
-            {usdEstimate && collection.price > 0 && (
-              <span className="text-xs text-gray-400">(≈ ${(usdEstimate * collection.price).toFixed(2)} USD)</span>
+            <span className="font-semibold">{effectivePrice === 0 ? 'FREE' : `${effectivePrice} SOL`}</span>
+            {usdEstimate && effectivePrice > 0 && (
+              <span className="text-xs text-gray-400">(≈ ${(usdEstimate * effectivePrice).toFixed(2)} USD)</span>
             )}
           </div>
           <div className="flex items-center gap-3">
