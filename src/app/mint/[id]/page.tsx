@@ -290,6 +290,33 @@ export default function MintPage() {
         toast.error('Wallet not eligible for the selected phase')
         return
       }
+      // Double-check server-side eligibility and remaining per-phase allowance
+      try {
+        const checkRes = await fetch('/api/mint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'check',
+            wallet: publicKey.toString(),
+            collectionAddress: collection.id || collection.candyMachineAddress || collection.mintPageUrl || '',
+            quantity: mintCount,
+            phase: selectedPhase ? { name: selectedPhase.name } : null,
+          })
+        })
+        const checkJson = await checkRes.json()
+        if (!checkRes.ok || checkJson?.ok === false) {
+          if (checkJson?.reason === 'no_live_phase') throw new Error('No live phase currently')
+          if (checkJson?.reason === 'allowlist') throw new Error('Wallet not eligible for this phase')
+          if (checkJson?.reason === 'limit') throw new Error(`Mint limit reached for this phase. Already: ${checkJson?.already || 0}`)
+          throw new Error('Eligibility check failed')
+        }
+        if (typeof checkJson?.allowed === 'number' && isFinite(checkJson.allowed) && checkJson.allowed < mintCount) {
+          throw new Error(`You can mint up to ${checkJson.allowed} more in this phase`)
+        }
+      } catch (e: any) {
+        throw e
+      }
+
       // Calculate cost breakdown
       const priceForCost = selectedPhase ? Number(selectedPhase.price || 0) : collection.price
       const costBreakdown = await calculateMintCost(priceForCost, mintCount, collection.network)

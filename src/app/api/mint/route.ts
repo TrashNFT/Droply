@@ -7,6 +7,98 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { action } = body || {}
 
+    if (action === 'check') {
+      const { wallet, collectionAddress, quantity = 1, phase } = body || {}
+      if (!wallet || !collectionAddress) {
+        return NextResponse.json({ error: 'Missing wallet or collectionAddress' }, { status: 400 })
+      }
+      // Resolve collection
+      const col = await query(
+        `SELECT id, phases FROM collections 
+         WHERE collection_address = $1 OR candy_machine_address = $1 OR id::text = $1 
+         LIMIT 1`,
+        [collectionAddress]
+      )
+      if (!col.rows.length) return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
+      const collectionId = col.rows[0].id
+      // Parse phases
+      let serverPhases: any[] = []
+      try {
+        const p = col.rows[0].phases
+        serverPhases = Array.isArray(p) ? p : (p ? JSON.parse(p) : [])
+      } catch {}
+      const nowTs = Date.now()
+      const resolveActive = (phs: any[]) => phs.find((x: any) => {
+        const s = x?.startDate ? new Date(x.startDate).getTime() : -Infinity
+        const e = x?.endDate ? new Date(x.endDate).getTime() : Infinity
+        return nowTs >= s && nowTs <= e
+      })
+      const phaseByName = (n?: string) => serverPhases.find((x: any) => x?.name === n)
+      let active = phase?.name ? phaseByName(phase.name) : resolveActive(serverPhases)
+      if (phase?.name && !active) active = resolveActive(serverPhases)
+
+      // No live phase when phases exist -> block
+      if (serverPhases.length > 0 && !active) {
+        return NextResponse.json({ ok: false, reason: 'no_live_phase', allowed: 0, already: 0, phase: null })
+      }
+
+      // Allowlist check
+      if (active) {
+        let listed = true
+        if (Array.isArray(active.allowlist)) {
+          if (active.allowlist.length > 0) {
+            listed = active.allowlist.map((a: string) => a.trim()).includes(String(wallet))
+          } else {
+            listed = true
+          }
+        } else {
+          try {
+            const wl = await query<{ exists: boolean }>(
+              `SELECT EXISTS(
+                 SELECT 1 FROM phase_allowlist
+                 WHERE collection_id = $1 AND phase_name = $2 AND wallet_address = $3
+               ) as exists`,
+              [collectionId, active.name || '', String(wallet)]
+            )
+            listed = Boolean(wl.rows[0]?.exists)
+          } catch { listed = true }
+        }
+        if (!listed) {
+          return NextResponse.json({ ok: false, reason: 'allowlist', allowed: 0, already: 0, phase: active?.name || null })
+        }
+      }
+
+      // Per-phase wallet mint count
+      let already = 0
+      try {
+        const countRes = await query<{ sum: string }>(
+          `SELECT COALESCE(SUM(quantity), 0) as sum
+           FROM mint_transactions
+           WHERE collection_id = $1 AND minter_address = $2 AND status = 'confirmed' AND phase_name = $3`,
+          [collectionId, wallet, active?.name || null]
+        )
+        already = Number(countRes.rows[0]?.sum || 0)
+      } catch {
+        // Legacy schema without phase_name
+        const countRes = await query<{ sum: string }>(
+          `SELECT COALESCE(SUM(quantity), 0) as sum
+           FROM mint_transactions
+           WHERE collection_id = $1 AND minter_address = $2 AND status = 'confirmed'`,
+          [collectionId, wallet]
+        )
+        already = Number(countRes.rows[0]?.sum || 0)
+      }
+      const maxPerWallet = Number(active?.maxPerWallet || 0)
+      const allowed = maxPerWallet > 0 ? Math.max(0, maxPerWallet - already) : Infinity
+      if (maxPerWallet > 0 && already >= maxPerWallet) {
+        return NextResponse.json({ ok: false, reason: 'limit', already, allowed: 0, phase: active?.name || null })
+      }
+      if (maxPerWallet > 0 && Number(quantity) > allowed) {
+        return NextResponse.json({ ok: true, reason: null, already, allowed, phase: active?.name || null })
+      }
+      return NextResponse.json({ ok: true, reason: null, already, allowed, phase: active?.name || null })
+    }
+
     if (action === 'reserve') {
       const { wallet, collectionAddress, quantity = 1, phase, price = 0, network = 'mainnet-beta' } = body
       if (!wallet || !collectionAddress) {
