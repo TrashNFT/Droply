@@ -492,6 +492,17 @@ export default function MintPage() {
     return walletStr ? normalized.includes(walletStr.toString()) : false
   })()
 
+  // Determine UI selection cap based on phase maxPerWallet (if provided)
+  const phaseMaxPerWallet = (selectedPhase && typeof selectedPhase.maxPerWallet === 'number' && selectedPhase.maxPerWallet > 0)
+    ? Number(selectedPhase.maxPerWallet)
+    : Infinity
+  const maxSelectable = Math.min(remaining, phaseMaxPerWallet)
+
+  // Clamp mintCount when phase/remaining changes
+  useEffect(() => {
+    setMintCount((prev) => Math.max(1, Math.min(prev, isFinite(maxSelectable) ? maxSelectable : prev)))
+  }, [selectedPhaseIdx, remaining])
+
   return (
     <div className="min-h-screen bg-dots">
       {/* Header (mobile-first) */}
@@ -607,7 +618,7 @@ export default function MintPage() {
                           <div className={`h-2.5 w-2.5 rounded-full ${live ? 'bg-emerald-400' : ended ? 'bg-gray-500' : 'bg-amber-400'}`}></div>
                           <div>
                             <div className="text-sm font-medium text-white">{label}</div>
-                            <div className="text-xs text-gray-400">Price {p.price ? `${p.price} SOL` : 'FREE'}</div>
+                            <div className="text-xs text-gray-400">Price {p.price ? `${p.price} SOL` : 'FREE'}{(typeof p.maxPerWallet === 'number' && p.maxPerWallet > 0) ? ` • Max ${p.maxPerWallet}/wallet` : ''}</div>
                           </div>
                         </div>
                         <div className="text-right text-xs text-gray-400">
@@ -708,7 +719,15 @@ export default function MintPage() {
                   <div className="inline-flex items-center gap-2" id="mint-controls">
                     <Button variant="outline" size="sm" onClick={() => setMintCount(Math.max(1, mintCount - 1))} disabled={mintCount <= 1} aria-label="Decrease quantity">-</Button>
                     <span className="min-w-[56px] rounded-md bg-white/5 px-3 py-2 text-center text-white">{mintCount}</span>
-                    <Button variant="outline" size="sm" onClick={() => setMintCount(Math.min(remaining, mintCount + 1))} disabled={mintCount >= remaining} aria-label="Increase quantity">+</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setMintCount(Math.min(isFinite(maxSelectable) ? maxSelectable : remaining, mintCount + 1))}
+                      disabled={mintCount >= (isFinite(maxSelectable) ? maxSelectable : remaining)}
+                      aria-label="Increase quantity"
+                    >
+                      +
+                    </Button>
                     </div>
                   </div>
 
