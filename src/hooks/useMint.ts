@@ -204,26 +204,38 @@ export function useMint() {
       let responseSig = ''
       let mintedAddress: string | undefined
       if (standard === 'core') {
-        // Create a Core asset using provided metadataUri
-        const reservedIdx = (params as any).__reservedIndex
-        const chosenUri = Array.isArray((params as any)?.itemUris) && reservedIdx != null ? (params as any).itemUris[reservedIdx] : metadataUri
-        if (!chosenUri) {
-          throw new Error('Missing metadata URI for Core mint')
-        }
+        // Create Core assets; support multi-quantity by repeating the create instruction
+        const mintsToDo = Math.max(1, Number(quantity) || 1)
         // Use Umi with mpl-core plugin enabled
         const umi = getUmiCore(network, wallet.adapter)
-        const assetSigner = generateSigner(umi)
-        // Build a single transaction: platform fee transfer + core create
-        const builder = transferSol(umi as any, {
+        // Start with platform fee transfer for all items
+        let builder = transferSol(umi as any, {
           destination: umiPublicKey(PLATFORM_WALLET_ADDRESS.toString()),
-          amount: lamports(BigInt(feeInfo.feeLamports)),
-        } as any).add(coreCreate(umi, {
-          asset: assetSigner,
+          amount: lamports(BigInt(feeInfo.feeLamports * mintsToDo)),
+        } as any)
+        const firstSigner = generateSigner(umi)
+        // First item
+        if (!metadataUri) {
+          throw new Error('Missing metadata URI for Core mint')
+        }
+        builder = builder.add(coreCreate(umi, {
+          asset: firstSigner,
           name: name || 'Core Asset',
-          uri: chosenUri,
+          uri: metadataUri,
           authority: (umi as any).identity,
           payer: (umi as any).payer ?? (umi as any).identity,
         } as any))
+        // Additional items (reuse same metadataUri for now)
+        for (let i = 1; i < mintsToDo; i++) {
+          const signer = generateSigner(umi)
+          builder = builder.add(coreCreate(umi, {
+            asset: signer,
+            name: name || 'Core Asset',
+            uri: metadataUri,
+            authority: (umi as any).identity,
+            payer: (umi as any).payer ?? (umi as any).identity,
+          } as any))
+        }
         const res = await builder.sendAndConfirm(umi)
         try {
           const sigBytes = (res as any)?.signature as Uint8Array
@@ -231,7 +243,7 @@ export function useMint() {
         } catch {
           responseSig = String((res as any)?.signature)
         }
-        mintedAddress = (assetSigner.publicKey as any).toString()
+        mintedAddress = (firstSigner.publicKey as any).toString()
       } else if (standard === 'legacy') {
         const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
         // Use phase name as Candy Guard group label when present
@@ -257,13 +269,16 @@ export function useMint() {
           }
         }
 
-        // Mint builder
-        const mintBuilder = await (metaplex.candyMachines() as any).builders().mint({
-          candyMachine: cm as any,
-          collectionUpdateAuthority: metaplex.identity().publicKey as any,
-          ...(groupLabel ? { group: groupLabel as any } : {}),
-        })
-        builderParts.push(mintBuilder)
+        // Mint builders (repeat for quantity)
+        const mintsToDo = Math.max(1, Number(quantity) || 1)
+        for (let i = 0; i < mintsToDo; i++) {
+          const mintBuilder = await (metaplex.candyMachines() as any).builders().mint({
+            candyMachine: cm as any,
+            collectionUpdateAuthority: metaplex.identity().publicKey as any,
+            ...(groupLabel ? { group: groupLabel as any } : {}),
+          })
+          builderParts.push(mintBuilder)
+        }
 
         // Combine builders and prepend platform fee transfer
         const combined = (TransactionBuilder as any).make()
@@ -272,7 +287,7 @@ export function useMint() {
           instruction: SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: PLATFORM_WALLET_ADDRESS,
-            lamports: feeInfo.feeLamports,
+            lamports: feeInfo.feeLamports * Math.max(1, Number(quantity) || 1),
           }),
           signers: [],
           key: 'platformFee',
@@ -295,7 +310,7 @@ export function useMint() {
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: PLATFORM_WALLET_ADDRESS,
-            lamports: feeInfo.feeLamports,
+            lamports: feeInfo.feeLamports * Math.max(1, Number(quantity) || 1),
           })
         )
         const feeSig = await wallet.adapter.sendTransaction(feeTx, connection, { preflightCommitment: 'confirmed' })
