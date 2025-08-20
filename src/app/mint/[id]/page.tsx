@@ -740,6 +740,24 @@ export default function MintPage() {
                    <div>Network: <span className="text-white">{String(collection.network).includes('mainnet') ? 'SOLANA' : 'DEVNET'}</span></div>
                   <div>Remaining: <span className="text-white">{remaining}</span></div>
                   <div>Creator: <span className="text-white">{collection.creatorAddress?.slice(0, 4)}…{collection.creatorAddress?.slice(-4)}</span></div>
+                  <div className="col-span-2">
+                    <div className="flex items-center justify-between">
+                      <span>Collection Address: <span className="text-white">{collection.id?.slice(0, 4)}…{collection.id?.slice(-4)}</span></span>
+                      <button
+                        className="rounded-md border border-white/10 px-2 py-1 text-xs text-gray-300 hover:text-white"
+                        title="Copy collection address"
+                        aria-label="Copy collection address"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(collection.id!)
+                            toast.success('Collection address copied')
+                          } catch {}
+                        }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
                   {collection.candyMachineAddress && (
                     <div className="flex items-center justify-between">
                       <span>CM Address: <span className="text-white">{collection.candyMachineAddress.slice(0, 4)}…{collection.candyMachineAddress.slice(-4)}</span></span>
