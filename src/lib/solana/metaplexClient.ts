@@ -1,4 +1,4 @@
-import { Connection } from '@solana/web3.js'
+import { Connection, clusterApiUrl } from '@solana/web3.js'
 import { Metaplex, irysStorage, walletAdapterIdentity, toMetaplexFile } from '@metaplex-foundation/js'
 
 export const createMetaplexClient = (
@@ -6,7 +6,7 @@ export const createMetaplexClient = (
   network: 'mainnet-beta' | 'devnet' = 'devnet'
 ) => {
   const rpcUrl = network === 'devnet'
-    ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
+    ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || clusterApiUrl('devnet')
     : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
 
   const connection = new Connection(rpcUrl, {

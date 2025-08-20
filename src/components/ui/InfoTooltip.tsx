@@ -44,3 +44,7 @@ export default function InfoTooltip({ text, className, size = 14 }: Props) {
 
 
 
+
+
+
+

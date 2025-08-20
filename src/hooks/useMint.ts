@@ -7,7 +7,8 @@ import { getConnection } from '@/lib/solana/umi'
 import { createMintService, PLATFORM_WALLET_ADDRESS } from '@/lib/services/mintService'
 import { getUmiCore, getUmi } from '@/lib/solana/umi'
 import { create as coreCreate } from '@metaplex-foundation/mpl-core'
-import { generateSigner } from '@metaplex-foundation/umi'
+import { transferSol } from '@metaplex-foundation/mpl-toolbox'
+import { generateSigner, publicKey as umiPublicKey, lamports } from '@metaplex-foundation/umi'
 import toast from 'react-hot-toast'
 import bs58 from 'bs58'
 
@@ -196,20 +197,10 @@ export function useMint() {
         costBreakdown
       })
 
-      // Execute the platform fee transfer first, then the actual mint via Metaplex JS
-      const connection = getConnection('mainnet-beta')
+      // Build the mint in a single transaction when possible (legacy/CMv3).
+      const connection = getConnection(network)
       const metaplex = Metaplex.make(connection).use(walletAdapterIdentity(wallet.adapter))
-      // Platform fee ($1) transfer
       const feeInfo = await mintService.getPlatformFeeInfo()
-      const feeTx = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: PLATFORM_WALLET_ADDRESS,
-          lamports: feeInfo.feeLamports,
-        })
-      )
-      const feeSig = await wallet.adapter.sendTransaction(feeTx, connection, { preflightCommitment: 'confirmed' })
-      await connection.confirmTransaction(feeSig, 'confirmed')
       let responseSig = ''
       let mintedAddress: string | undefined
       if (standard === 'core') {
@@ -220,15 +211,20 @@ export function useMint() {
           throw new Error('Missing metadata URI for Core mint')
         }
         // Use Umi with mpl-core plugin enabled
-        const umi = getUmiCore('mainnet-beta', wallet.adapter)
+        const umi = getUmiCore(network, wallet.adapter)
         const assetSigner = generateSigner(umi)
-        const res = await coreCreate(umi, {
+        // Build a single transaction: platform fee transfer + core create
+        const builder = transferSol(umi as any, {
+          destination: umiPublicKey(PLATFORM_WALLET_ADDRESS.toString()),
+          amount: lamports(BigInt(feeInfo.feeLamports)),
+        } as any).add(coreCreate(umi, {
           asset: assetSigner,
           name: name || 'Core Asset',
           uri: chosenUri,
           authority: (umi as any).identity,
           payer: (umi as any).payer ?? (umi as any).identity,
-        } as any).sendAndConfirm(umi)
+        } as any))
+        const res = await builder.sendAndConfirm(umi)
         try {
           const sigBytes = (res as any)?.signature as Uint8Array
           responseSig = bs58.encode(sigBytes)
@@ -290,9 +286,20 @@ export function useMint() {
         }
         // Minted NFT address is not trivial to extract from logs here
       } else if (standard === 'cnft') {
+        // For cNFT, keep platform-fee as a separate transfer for now since the mint is performed server-side.
+        // Execute fee transfer first to avoid failing after server mint.
         if (!metadataUri) {
           throw new Error('Missing metadata URI for cNFT mint')
         }
+        const feeTx = new Transaction().add(
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: PLATFORM_WALLET_ADDRESS,
+            lamports: feeInfo.feeLamports,
+          })
+        )
+        const feeSig = await wallet.adapter.sendTransaction(feeTx, connection, { preflightCommitment: 'confirmed' })
+        await connection.confirmTransaction(feeSig, 'confirmed')
         // For cNFT, call API to mint compressed NFT via server signer
         const cnftRes = await fetch('/api/cnft', {
           method: 'POST',

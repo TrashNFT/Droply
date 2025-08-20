@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create collection service with real Solana connection
-    const connection = getConnection('mainnet-beta')
+    const connection = getConnection((network as 'mainnet-beta' | 'devnet') || 'mainnet-beta')
     
     // For demo purposes, we'll skip the real Solana transaction and just return mock data
     // In production, you would need proper wallet integration for signing
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const collectionService = createCollectionService(mockWalletAdapter as any, 'mainnet-beta')
+    const collectionService = createCollectionService(mockWalletAdapter as any, (network as 'mainnet-beta' | 'devnet') || 'mainnet-beta')
 
     // Deploy the collection using real Solana transactions
     const deploymentResult = await collectionService.deployCollection(

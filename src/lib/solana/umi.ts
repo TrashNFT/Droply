@@ -1,5 +1,5 @@
 import { WalletAdapter } from '@solana/wallet-adapter-base'
-import { Connection } from '@solana/web3.js'
+import { Connection, clusterApiUrl } from '@solana/web3.js'
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
 import { walletAdapterIdentity } from '@metaplex-foundation/umi-signer-wallet-adapters'
 import { mplCandyMachine } from '@metaplex-foundation/mpl-candy-machine'
@@ -7,38 +7,41 @@ import * as CandyGuardPlugin from '@metaplex-foundation/mpl-candy-guard'
 import * as BubblegumPlugin from '@metaplex-foundation/mpl-bubblegum'
 import { mplCore } from '@metaplex-foundation/mpl-core'
 
-export const getConnection = (network: 'mainnet-beta' = 'mainnet-beta') => {
-  const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+export const getConnection = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta') => {
+  const rpcUrl =
+    network === 'devnet'
+      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || clusterApiUrl('devnet')
+      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
   return new Connection(rpcUrl, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 120_000,
   })
 }
 
-const createBaseUmi = (network: 'mainnet-beta') => {
+const createBaseUmi = (network: 'mainnet-beta' | 'devnet') => {
   const connection = getConnection(network)
   return createUmi((connection as any).rpcEndpoint || (connection as any)._rpcEndpoint)
 }
 
-export const getUmiCore = (network: 'mainnet-beta' = 'mainnet-beta', walletAdapter?: any) => {
+export const getUmiCore = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
   let umi = createBaseUmi(network).use(mplCore())
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }
 
-export const getUmiCandy = (network: 'mainnet-beta' = 'mainnet-beta', walletAdapter?: any) => {
+export const getUmiCandy = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
   let umi = createBaseUmi(network)
     .use(mplCandyMachine())
     .use((CandyGuardPlugin as any).mplCandyGuard?.() ?? ((u: any) => u))
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }
 
-export const getUmiBubblegum = (network: 'mainnet-beta' = 'mainnet-beta', walletAdapter?: any) => {
+export const getUmiBubblegum = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
   let umi = createBaseUmi(network).use((BubblegumPlugin as any).mplBubblegum?.() ?? ((u: any) => u))
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }
 
 // Backward compatible minimal Umi (no plugins)
-export const getUmi = (network: 'mainnet-beta' = 'mainnet-beta', walletAdapter?: any) => {
+export const getUmi = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
   const umi = createBaseUmi(network)
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }

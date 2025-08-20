@@ -20,7 +20,7 @@ export class CollectionService {
   private candyMachineService: SolanaCandyMachineService
 
   constructor(wallet: any, network: 'mainnet-beta' | 'devnet' = 'mainnet-beta') {
-    this.connection = getConnection('mainnet-beta')
+    this.connection = getConnection(network)
     this.wallet = wallet
     this.candyMachineService = new SolanaCandyMachineService(this.connection, wallet)
   }
