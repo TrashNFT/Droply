@@ -85,6 +85,7 @@ export function useMint() {
     network?: 'mainnet-beta' | 'devnet'
     standard?: 'core' | 'legacy' | 'cnft'
     metadataUri?: string
+    itemUris?: string[]
     name?: string
     selectedPhaseName?: string
     phases?: Array<{
