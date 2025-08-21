@@ -365,6 +365,7 @@ export default function MintPage() {
         network: collection.network,
         standard: collection.standard || 'legacy',
         metadataUri,
+        itemUris: Array.isArray(collection.itemUris) ? collection.itemUris : [],
         name: collection.name,
         selectedPhaseName: selectedPhase?.name,
         phases: Array.isArray(phases) ? phases : [],
