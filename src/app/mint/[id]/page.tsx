@@ -260,6 +260,14 @@ export default function MintPage() {
   const { mintNFT, calculateMintCost, minting: hookMinting } = useMint()
   const [thawing, setThawing] = useState(false)
 
+  // Compute remaining early so hooks below can depend on it without conditional rendering
+  const remaining = collection ? (collection.itemsAvailable - collection.itemsMinted) : 0
+
+  // Clamp mintCount based on remaining supply when selection changes
+  useEffect(() => {
+    setMintCount((prev) => Math.max(1, Math.min(prev, isFinite(remaining) ? remaining : prev)))
+  }, [selectedPhaseIdx, remaining])
+
   const handleMint = async () => {
     if (!connected || !publicKey) {
       toast.error('Please connect your wallet to mint')
@@ -454,7 +462,6 @@ export default function MintPage() {
   }
 
   const mintProgress = (collection.itemsMinted / collection.itemsAvailable) * 100
-  const remaining = collection.itemsAvailable - collection.itemsMinted
   // Build phases for display, injecting implicit Public if not defined
   const basePhases: any[] = (collection as any).phases || []
   const hasExplicitPublic = basePhases.some((p: any) => !Array.isArray(p?.allowlist) || p.allowlist.length === 0)
@@ -498,10 +505,7 @@ export default function MintPage() {
     : Infinity
   const maxSelectable = Math.min(remaining, phaseMaxPerWallet)
 
-  // Clamp mintCount when phase/remaining changes
-  useEffect(() => {
-    setMintCount((prev) => Math.max(1, Math.min(prev, isFinite(maxSelectable) ? maxSelectable : prev)))
-  }, [selectedPhaseIdx, remaining])
+  // (clamp already handled above with remaining)
 
   return (
     <div className="min-h-screen bg-dots">
