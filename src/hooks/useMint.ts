@@ -85,7 +85,6 @@ export function useMint() {
     network?: 'mainnet-beta' | 'devnet'
     standard?: 'core' | 'legacy' | 'cnft'
     metadataUri?: string
-    itemUris?: string[]
     name?: string
     selectedPhaseName?: string
     phases?: Array<{
@@ -157,7 +156,6 @@ export function useMint() {
           quantity,
           price: effectivePrice,
           network,
-          standard,
         }
         if (chosenPhase) body.phase = chosenPhase
         const reserveRes = await fetch('/api/mint', {
@@ -178,27 +176,14 @@ export function useMint() {
           if (reserveJson?.reason === 'phase_sold_out') {
             throw new Error('This phase is sold out')
           }
-          if (reserveJson?.reason === 'sold_out') {
-            throw new Error('Sold out')
-          }
           const extra = reserveJson?.details ? `: ${reserveJson.details}` : ''
           throw new Error((reserveJson?.error || 'Reservation failed') + extra)
         }
         reservationId = reserveJson?.reservationId
         // Use reserved index for unique metadata when available
         const reservedIndex: number | undefined = typeof reserveJson?.reservedIndex === 'number' ? reserveJson.reservedIndex : undefined
-        if (standard === 'core') {
-          // Determine per-item metadata URIs using reserved index window if provided
-          const pickUriAt = (idx: number): string | undefined => {
-            const list = Array.isArray(params.itemUris) ? params.itemUris : []
-            if (!list || list.length === 0) return params.metadataUri
-            if (reservedIndex != null) {
-              const pos = reservedIndex + idx
-              return list[pos]
-            }
-            return params.metadataUri || list[0]
-          }
-          ;(params as any).__pickUriAt = pickUriAt
+        if (reservedIndex != null && Array.isArray(params.phases)) {
+          ;(params as any).__reservedIndex = reservedIndex
         }
       }
       const mintService = createMintService((wallet as any), network)
@@ -229,25 +214,24 @@ export function useMint() {
           amount: lamports(BigInt(feeInfo.feeLamports * mintsToDo)),
         } as any)
         const firstSigner = generateSigner(umi)
-        // Pick metadata URIs deterministically
-        const pickUriAt: ((i: number) => string | undefined) | undefined = (params as any).__pickUriAt
-        const uri0 = pickUriAt ? pickUriAt(0) : metadataUri
-        if (!uri0) throw new Error('Missing metadata URI for Core mint')
+        // First item
+        if (!metadataUri) {
+          throw new Error('Missing metadata URI for Core mint')
+        }
         builder = builder.add(coreCreate(umi, {
           asset: firstSigner,
           name: name || 'Core Asset',
-          uri: uri0,
+          uri: metadataUri,
           authority: (umi as any).identity,
           payer: (umi as any).payer ?? (umi as any).identity,
         } as any))
         // Additional items (reuse same metadataUri for now)
         for (let i = 1; i < mintsToDo; i++) {
           const signer = generateSigner(umi)
-          const uriI = pickUriAt ? pickUriAt(i) : metadataUri
           builder = builder.add(coreCreate(umi, {
             asset: signer,
             name: name || 'Core Asset',
-            uri: uriI || uri0,
+            uri: metadataUri,
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
@@ -262,14 +246,6 @@ export function useMint() {
         mintedAddress = (firstSigner.publicKey as any).toString()
       } else if (standard === 'legacy') {
         const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
-        try {
-          // Pre-check remaining items against requested quantity to give clearer errors than RPC 'Sold out'
-          // @ts-ignore: metaplex SDK types
-          const remaining = (cm as any)?.itemsRemaining ?? Math.max(0, Number((cm as any)?.itemsAvailable ?? 0) - Number((cm as any)?.itemsMinted ?? 0))
-          if (remaining < quantity) {
-            throw new Error(`Sold out or not enough supply. Remaining: ${remaining}`)
-          }
-        } catch {}
         // Use phase name as Candy Guard group label when present
         const groupLabel = chosenPhase?.name ? String(chosenPhase.name).slice(0, 32) : undefined
 
@@ -298,7 +274,6 @@ export function useMint() {
         for (let i = 0; i < mintsToDo; i++) {
           const mintBuilder = await (metaplex.candyMachines() as any).builders().mint({
             candyMachine: cm as any,
-            // Pass collection update authority so the mint flow can set and verify the collection on the minted asset
             collectionUpdateAuthority: metaplex.identity().publicKey as any,
             ...(groupLabel ? { group: groupLabel as any } : {}),
           })

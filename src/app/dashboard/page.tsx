@@ -227,9 +227,7 @@ export default function DashboardPage() {
   }
 
   const getMintProgress = (minted: number, total: number) => {
-    const safeTotal = Math.max(1, Number(total) || 0)
-    const safeMinted = Math.max(0, Math.min(Number(minted) || 0, safeTotal))
-    return (safeMinted / safeTotal) * 100
+    return (minted / total) * 100
   }
 
   return (
@@ -371,19 +369,13 @@ export default function DashboardPage() {
                           Free Mint
                         </div>
                       )}
-                      {(() => {
-                        const total = Math.max(1, Number(collection.itemsAvailable) || 0, Number(collection.itemsMinted) || 0)
-                        const minted = Math.max(0, Math.min(Number(collection.itemsMinted) || 0, total))
-                        return (
-                          <div className="text-xs md:text-sm text-gray-300">
-                            {minted} / {total} minted
-                          </div>
-                        )
-                      })()}
+                      <div className="text-xs md:text-sm text-gray-300">
+                        {collection.itemsMinted} / {collection.itemsAvailable} minted
+                      </div>
                       <div className="mt-2 h-2 w-28 md:w-32 rounded-full bg-white/10">
                         <div
                           className="h-2 rounded-full bg-primary-500"
-                          style={{ width: `${Math.min(100, getMintProgress(collection.itemsMinted, Math.max(collection.itemsAvailable, collection.itemsMinted))) }%` }}
+                          style={{ width: `${Math.min(100, getMintProgress(collection.itemsMinted, collection.itemsAvailable))}%` }}
                         />
                       </div>
                     </div>
