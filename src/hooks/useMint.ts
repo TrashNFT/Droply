@@ -274,7 +274,7 @@ export function useMint() {
         for (let i = 0; i < mintsToDo; i++) {
           const mintBuilder = await (metaplex.candyMachines() as any).builders().mint({
             candyMachine: cm as any,
-            collectionUpdateAuthority: metaplex.identity().publicKey as any,
+            // Do not override collectionUpdateAuthority; the Candy Machine authority/record will verify collection
             ...(groupLabel ? { group: groupLabel as any } : {}),
           })
           builderParts.push(mintBuilder)
