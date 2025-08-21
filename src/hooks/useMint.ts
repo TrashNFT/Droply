@@ -157,6 +157,7 @@ export function useMint() {
           quantity,
           price: effectivePrice,
           network,
+          standard,
         }
         if (chosenPhase) body.phase = chosenPhase
         const reserveRes = await fetch('/api/mint', {
@@ -261,6 +262,14 @@ export function useMint() {
         mintedAddress = (firstSigner.publicKey as any).toString()
       } else if (standard === 'legacy') {
         const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
+        try {
+          // Pre-check remaining items against requested quantity to give clearer errors than RPC 'Sold out'
+          // @ts-ignore: metaplex SDK types
+          const remaining = (cm as any)?.itemsRemaining ?? Math.max(0, Number((cm as any)?.itemsAvailable ?? 0) - Number((cm as any)?.itemsMinted ?? 0))
+          if (remaining < quantity) {
+            throw new Error(`Sold out or not enough supply. Remaining: ${remaining}`)
+          }
+        } catch {}
         // Use phase name as Candy Guard group label when present
         const groupLabel = chosenPhase?.name ? String(chosenPhase.name).slice(0, 32) : undefined
 

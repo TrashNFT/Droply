@@ -261,7 +261,7 @@ export default function MintPage() {
   const [thawing, setThawing] = useState(false)
 
   // Compute remaining early so hooks below can depend on it without conditional rendering
-  const remaining = collection ? (collection.itemsAvailable - collection.itemsMinted) : 0
+  const remaining = collection ? Math.max(0, Number(collection.itemsAvailable || 0) - Number(collection.itemsMinted || 0)) : 0
 
   // Clamp mintCount based on remaining supply when selection changes
   useEffect(() => {
@@ -462,7 +462,9 @@ export default function MintPage() {
     )
   }
 
-  const mintProgress = (collection.itemsMinted / collection.itemsAvailable) * 100
+  const mintedCount = Math.max(0, Number(collection.itemsMinted || 0))
+  const totalCount = Math.max(0, Number(collection.itemsAvailable || 0))
+  const mintProgress = totalCount > 0 ? (mintedCount / totalCount) * 100 : 0
   // Build phases for display, injecting implicit Public if not defined
   const basePhases: any[] = (collection as any).phases || []
   const hasExplicitPublic = basePhases.some((p: any) => !Array.isArray(p?.allowlist) || p.allowlist.length === 0)
@@ -569,8 +571,8 @@ export default function MintPage() {
                   ))}
                 </div>
               </div>
-            )}
-              </div>
+                        )}
+                      </div>
 
           {/* Right: Details card */}
           <div>
@@ -600,8 +602,8 @@ export default function MintPage() {
                       <LinkIcon className="h-4 w-4" />
                     </a>
                   )}
+                  </div>
                 </div>
-              </div>
 
               {/* Stages */}
               <div className="rounded-xl border border-white/10 bg-black/10">
@@ -621,7 +623,7 @@ export default function MintPage() {
                       <div key={i} className="flex items-center justify-between px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className={`h-2.5 w-2.5 rounded-full ${live ? 'bg-emerald-400' : ended ? 'bg-gray-500' : 'bg-amber-400'}`}></div>
-                          <div>
+                    <div>
                             <div className="text-sm font-medium text-white">{label}</div>
                             <div className="text-xs text-gray-400">Price {p.price ? `${p.price} SOL` : 'FREE'}{(typeof p.maxPerWallet === 'number' && p.maxPerWallet > 0) ? ` • Max ${p.maxPerWallet}/wallet` : ''}</div>
                           </div>
@@ -640,8 +642,8 @@ export default function MintPage() {
                           )}
                         </div>
                           <Countdown start={p.startDate} end={p.endDate || undefined} className="mt-1" />
-                      </div>
-                      </div>
+                    </div>
+                  </div>
                     )
                   }) : (
                     <div className="px-4 py-3 text-sm text-gray-400">No stage data provided</div>
@@ -700,7 +702,7 @@ export default function MintPage() {
                                 </button>
                               )
                             })}
-                          </div>
+                      </div>
                         )}
                         {wl && (
                           <div className="text-xs text-gray-400">WL is prioritized over Public while both are live.</div>
@@ -724,15 +726,15 @@ export default function MintPage() {
                   <div className="inline-flex items-center gap-2" id="mint-controls">
                     <Button variant="outline" size="sm" onClick={() => setMintCount(Math.max(1, mintCount - 1))} disabled={mintCount <= 1} aria-label="Decrease quantity">-</Button>
                     <span className="min-w-[56px] rounded-md bg-white/5 px-3 py-2 text-center text-white">{mintCount}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                      <Button
+                        variant="outline"
+                        size="sm"
                       onClick={() => setMintCount(Math.min(isFinite(maxSelectable) ? maxSelectable : remaining, mintCount + 1))}
                       disabled={mintCount >= (isFinite(maxSelectable) ? maxSelectable : remaining)}
                       aria-label="Increase quantity"
-                    >
-                      +
-                    </Button>
+                      >
+                        +
+                      </Button>
                     </div>
                   </div>
 

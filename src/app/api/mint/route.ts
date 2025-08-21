@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'reserve') {
-      const { wallet, collectionAddress, quantity = 1, phase, price = 0, network = 'mainnet-beta' } = body
+      const { wallet, collectionAddress, quantity = 1, phase, price = 0, network = 'mainnet-beta', standard } = body
       if (!wallet || !collectionAddress) {
         return NextResponse.json({ error: 'Missing wallet or collectionAddress' }, { status: 400 })
       }
@@ -258,7 +258,9 @@ export async function POST(request: NextRequest) {
           const arr = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : [])
           if (Array.isArray(arr)) uriCount = arr.length
         } catch {}
-        if ((itemsAvailable > 0 && nextEnd > itemsAvailable) || (isFinite(uriCount) && nextEnd > uriCount)) {
+        // Only enforce URI count for Core or cNFT standards; legacy CMv3 doesn't require item_uris
+        const enforceUris = String(standard || '').toLowerCase() === 'core' || String(standard || '').toLowerCase() === 'cnft'
+        if ((itemsAvailable > 0 && nextEnd > itemsAvailable) || (enforceUris && isFinite(uriCount) && nextEnd > uriCount)) {
           return NextResponse.json({ ok: false, reason: 'sold_out' }, { status: 200 })
         }
         const up = await query<{ items_reserved: number }>(
