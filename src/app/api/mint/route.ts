@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
       }
       // Resolve collection
       const col = await query(
-        `SELECT id, phases FROM collections 
+        `SELECT id, phases, COALESCE(items_available, 0) AS items_available, COALESCE(items_reserved, 0) AS items_reserved, item_uris
+         FROM collections 
          WHERE collection_address = $1 OR candy_machine_address = $1 OR id::text = $1 
          LIMIT 1`,
         [collectionAddress]
@@ -241,18 +242,35 @@ export async function POST(request: NextRequest) {
           [collectionId, wallet, priceNum, totalPaid, quantity, network]
         )
       }
-      // Allocate next indices for this reservation
+      // Allocate next indices for this reservation (respecting total supply and optional item_uris length)
       let reservedIndex: number | null = null
       try {
+        const qty = Math.max(1, Number(quantity) || 1)
+        // Check against supply and available metadata
+        const itemsAvailable = Number(col.rows[0].items_available || 0)
+        const itemsReserved = Number(col.rows[0].items_reserved || 0)
+        const nextStart = itemsReserved
+        const nextEnd = itemsReserved + qty
+        // If item_uris present, ensure enough remaining URIs
+        let uriCount = Infinity
+        try {
+          const raw = col.rows[0].item_uris
+          const arr = Array.isArray(raw) ? raw : (raw ? JSON.parse(raw) : [])
+          if (Array.isArray(arr)) uriCount = arr.length
+        } catch {}
+        if ((itemsAvailable > 0 && nextEnd > itemsAvailable) || (isFinite(uriCount) && nextEnd > uriCount)) {
+          return NextResponse.json({ ok: false, reason: 'sold_out' }, { status: 200 })
+        }
         const up = await query<{ items_reserved: number }>(
           `UPDATE collections
-             SET items_reserved = items_reserved + 1,
+             SET items_reserved = COALESCE(items_reserved,0) + $2,
                  updated_at = NOW()
            WHERE id = $1
            RETURNING items_reserved`,
-          [collectionId]
+          [collectionId, qty]
         )
-        reservedIndex = Number(up.rows?.[0]?.items_reserved || 1) - 1
+        const newReserved = Number(up.rows?.[0]?.items_reserved || nextEnd)
+        reservedIndex = newReserved - qty
       } catch {}
 
       return NextResponse.json({ ok: true, reservationId: insert.rows[0].id, already, reservedIndex })
