@@ -219,9 +219,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Atomically reserve next item index(ices) to ensure unique metadata assignment for client-side mints (Core/cNFT)
+      // Atomically reserve next item indices for the full quantity
       const priceNum = Number(price) || 0
-      const totalPaid = priceNum * Number(quantity)
+      const qtyNum = Math.max(1, Number(quantity) || 1)
+      const totalPaid = priceNum * qtyNum
       let insert
       try {
         insert = await query(
@@ -229,7 +230,7 @@ export async function POST(request: NextRequest) {
            (collection_id, minter_address, nft_address, transaction_signature, mint_price, platform_fee, total_paid, quantity, status, network, phase_name)
            VALUES ($1,$2,NULL,NULL,$3,0,$4,$5,'pending',$6,$7)
            RETURNING id`,
-          [collectionId, wallet, priceNum, totalPaid, quantity, network, active?.name || null]
+          [collectionId, wallet, priceNum, totalPaid, qtyNum, network, active?.name || null]
         )
       } catch (e: any) {
         // Fallback for older schemas without phase_name column
@@ -238,24 +239,27 @@ export async function POST(request: NextRequest) {
            (collection_id, minter_address, nft_address, transaction_signature, mint_price, platform_fee, total_paid, quantity, status, network)
            VALUES ($1,$2,NULL,NULL,$3,0,$4,$5,'pending',$6)
            RETURNING id`,
-          [collectionId, wallet, priceNum, totalPaid, quantity, network]
+          [collectionId, wallet, priceNum, totalPaid, qtyNum, network]
         )
       }
-      // Allocate next indices for this reservation
-      let reservedIndex: number | null = null
+      // Allocate a contiguous block of indices [start, start+qty-1]
+      let reservedStart: number | null = null
+      let reservedIndices: number[] = []
       try {
         const up = await query<{ items_reserved: number }>(
           `UPDATE collections
-             SET items_reserved = items_reserved + 1,
+             SET items_reserved = items_reserved + $2,
                  updated_at = NOW()
            WHERE id = $1
            RETURNING items_reserved`,
-          [collectionId]
+          [collectionId, qtyNum]
         )
-        reservedIndex = Number(up.rows?.[0]?.items_reserved || 1) - 1
+        const newVal = Number(up.rows?.[0]?.items_reserved || qtyNum)
+        reservedStart = newVal - qtyNum
+        reservedIndices = Array.from({ length: qtyNum }, (_, i) => (reservedStart as number) + i)
       } catch {}
 
-      return NextResponse.json({ ok: true, reservationId: insert.rows[0].id, already, reservedIndex })
+      return NextResponse.json({ ok: true, reservationId: insert.rows[0].id, already, reservedStart, reservedIndices })
     }
 
     if (action === 'confirm') {

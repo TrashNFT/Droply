@@ -180,10 +180,12 @@ export function useMint() {
           throw new Error((reserveJson?.error || 'Reservation failed') + extra)
         }
         reservationId = reserveJson?.reservationId
-        // Use reserved index for unique metadata when available
-        const reservedIndex: number | undefined = typeof reserveJson?.reservedIndex === 'number' ? reserveJson.reservedIndex : undefined
-        if (reservedIndex != null && Array.isArray(params.phases)) {
-          ;(params as any).__reservedIndex = reservedIndex
+        // Use reserved indices for unique metadata when available
+        const indices: number[] | undefined = Array.isArray(reserveJson?.reservedIndices) ? reserveJson.reservedIndices : (
+          typeof reserveJson?.reservedStart === 'number' ? [reserveJson.reservedStart] : undefined
+        )
+        if (indices && indices.length > 0) {
+          ;(params as any).__reservedIndices = indices
         }
       }
       const mintService = createMintService((wallet as any), network)
@@ -213,25 +215,20 @@ export function useMint() {
           destination: umiPublicKey(PLATFORM_WALLET_ADDRESS.toString()),
           amount: lamports(BigInt(feeInfo.feeLamports * mintsToDo)),
         } as any)
-        const firstSigner = generateSigner(umi)
-        // First item
-        if (!metadataUri) {
-          throw new Error('Missing metadata URI for Core mint')
-        }
-        builder = builder.add(coreCreate(umi, {
-          asset: firstSigner,
-          name: name || 'Core Asset',
-          uri: metadataUri,
-          authority: (umi as any).identity,
-          payer: (umi as any).payer ?? (umi as any).identity,
-        } as any))
-        // Additional items (reuse same metadataUri for now)
-        for (let i = 1; i < mintsToDo; i++) {
+        const reserved: number[] = (params as any).__reservedIndices || []
+        const signers: any[] = []
+        for (let i = 0; i < mintsToDo; i++) {
           const signer = generateSigner(umi)
+          signers.push(signer)
+          const idx = reserved[i]
+          const uri = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
+            ? (params as any).itemUris[idx]
+            : metadataUri
+          if (!uri) throw new Error('Missing metadata URI for Core mint')
           builder = builder.add(coreCreate(umi, {
             asset: signer,
             name: name || 'Core Asset',
-            uri: metadataUri,
+            uri,
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
@@ -243,7 +240,7 @@ export function useMint() {
         } catch {
           responseSig = String((res as any)?.signature)
         }
-        mintedAddress = (firstSigner.publicKey as any).toString()
+        mintedAddress = (signers[0].publicKey as any).toString()
       } else if (standard === 'legacy') {
         const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
         // Use phase name as Candy Guard group label when present
