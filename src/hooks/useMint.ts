@@ -177,6 +177,9 @@ export function useMint() {
           if (reserveJson?.reason === 'phase_sold_out') {
             throw new Error('This phase is sold out')
           }
+          if (reserveJson?.reason === 'sold_out') {
+            throw new Error('Sold out')
+          }
           const extra = reserveJson?.details ? `: ${reserveJson.details}` : ''
           throw new Error((reserveJson?.error || 'Reservation failed') + extra)
         }
