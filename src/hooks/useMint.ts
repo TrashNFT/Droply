@@ -85,6 +85,7 @@ export function useMint() {
     network?: 'mainnet-beta' | 'devnet'
     standard?: 'core' | 'legacy' | 'cnft'
     metadataUri?: string
+    itemUris?: string[]
     name?: string
     selectedPhaseName?: string
     phases?: Array<{
@@ -182,8 +183,18 @@ export function useMint() {
         reservationId = reserveJson?.reservationId
         // Use reserved index for unique metadata when available
         const reservedIndex: number | undefined = typeof reserveJson?.reservedIndex === 'number' ? reserveJson.reservedIndex : undefined
-        if (reservedIndex != null && Array.isArray(params.phases)) {
-          ;(params as any).__reservedIndex = reservedIndex
+        if (standard === 'core') {
+          // Determine per-item metadata URIs using reserved index window if provided
+          const pickUriAt = (idx: number): string | undefined => {
+            const list = Array.isArray(params.itemUris) ? params.itemUris : []
+            if (!list || list.length === 0) return params.metadataUri
+            if (reservedIndex != null) {
+              const pos = reservedIndex + idx
+              return list[pos]
+            }
+            return params.metadataUri || list[0]
+          }
+          ;(params as any).__pickUriAt = pickUriAt
         }
       }
       const mintService = createMintService((wallet as any), network)
@@ -214,24 +225,25 @@ export function useMint() {
           amount: lamports(BigInt(feeInfo.feeLamports * mintsToDo)),
         } as any)
         const firstSigner = generateSigner(umi)
-        // First item
-        if (!metadataUri) {
-          throw new Error('Missing metadata URI for Core mint')
-        }
+        // Pick metadata URIs deterministically
+        const pickUriAt: ((i: number) => string | undefined) | undefined = (params as any).__pickUriAt
+        const uri0 = pickUriAt ? pickUriAt(0) : metadataUri
+        if (!uri0) throw new Error('Missing metadata URI for Core mint')
         builder = builder.add(coreCreate(umi, {
           asset: firstSigner,
           name: name || 'Core Asset',
-          uri: metadataUri,
+          uri: uri0,
           authority: (umi as any).identity,
           payer: (umi as any).payer ?? (umi as any).identity,
         } as any))
         // Additional items (reuse same metadataUri for now)
         for (let i = 1; i < mintsToDo; i++) {
           const signer = generateSigner(umi)
+          const uriI = pickUriAt ? pickUriAt(i) : metadataUri
           builder = builder.add(coreCreate(umi, {
             asset: signer,
             name: name || 'Core Asset',
-            uri: metadataUri,
+            uri: uriI || uri0,
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
