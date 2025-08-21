@@ -146,7 +146,7 @@ export default function DashboardPage() {
           updatedAt: new Date(row.updated_at || Date.now()),
           creatorAddress: row.creator_address || '',
           network: (row.network || 'mainnet-beta') as any,
-          standard: (row.standard || 'core') as any,
+          standard: (row.standard || 'legacy') as any,
           itemUris: Array.isArray(row.item_uris) ? row.item_uris : [],
           phases: Array.isArray(row.phases) ? row.phases : [],
           startDate: row.start_date || null,
@@ -567,7 +567,7 @@ export default function DashboardPage() {
               </div>
               <div className="md:col-span-2">
                 <MintSettings
-                  formData={{ mintSettings: { price: editing.price, itemsAvailable: editing.itemsAvailable, startDate: (editing as any).startDate || '', endDate: (editing as any).endDate || '', phases: (editing as any).phases || [], network: editing.network, sellerFeeBasisPoints: (editing as any).sellerFeeBasisPoints || 500, standard: editing.standard || 'core' }, collection: editing, collectionId: editing.id }}
+                  formData={{ mintSettings: { price: editing.price, itemsAvailable: editing.itemsAvailable, startDate: (editing as any).startDate || '', endDate: (editing as any).endDate || '', phases: (editing as any).phases || [], network: editing.network, sellerFeeBasisPoints: (editing as any).sellerFeeBasisPoints || 500, standard: editing.standard || 'legacy' }, collection: editing, collectionId: editing.id }}
                   onUpdate={(d: any) => setEditing({ ...editing, ...(d || {}), ...(d?.mintSettings || {}) })}
                   onNext={() => {}}
                   onBack={() => {}}

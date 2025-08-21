@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         body.sellerFeeBasisPoints || 500,
         body.isMutable ?? true,
         body.startDate ? new Date(body.startDate) : null,
-        body.standard || 'core',
+        body.standard || 'legacy',
         JSON.stringify((body as any).phases || []),
         JSON.stringify((body as any).itemUris || []),
         (body as any).website || null,

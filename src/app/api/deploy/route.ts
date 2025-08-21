@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         isMutable: formData.isMutable || true,
         startDate: formData.startDate ? new Date(formData.startDate) : undefined,
         network: network as 'mainnet-beta' | 'devnet',
-        standard: formData.standard || 'core',
+        standard: formData.standard || 'legacy',
       },
       assets || [],
       (stage: string, progress: number) => {
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
       creatorAddress: walletAddress,
       network: network as 'mainnet-beta' | 'devnet',
-      standard: formData.standard || 'core',
+      standard: formData.standard || 'legacy',
     }
     
     const result = {

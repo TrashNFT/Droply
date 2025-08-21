@@ -179,7 +179,7 @@ export default function MintPage() {
             updatedAt: new Date(data.updated_at || Date.now()),
             creatorAddress: data.creator_address || '',
             network: (data.network || 'mainnet-beta') as any,
-            standard: (data.standard || 'core') as any,
+            standard: (data.standard || 'legacy') as any,
             itemUris: data.item_uris || [],
             phases: data.phases || [],
             startDate: data.start_date || null,

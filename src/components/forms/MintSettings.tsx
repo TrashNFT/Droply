@@ -39,7 +39,7 @@ export function MintSettings({
     sellerFeeBasisPoints: formData.mintSettings?.sellerFeeBasisPoints || 500,
     network: formData.mintSettings?.network || 'mainnet-beta',
     isMutable: formData.mintSettings?.isMutable || true,
-    standard: formData.mintSettings?.standard || 'core',
+    standard: formData.mintSettings?.standard || 'legacy',
     phases: (Array.isArray(formData.mintSettings?.phases) && (formData.mintSettings?.phases as any[]).length > 0)
       ? formData.mintSettings!.phases
       : [makeDefaultPublicPhase()],
