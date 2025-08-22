@@ -202,17 +202,29 @@ export const deployCollectionClient = async (
           const bubblegum: any = await import('@metaplex-foundation/mpl-bubblegum')
           const treeSigner = generateSigner(umiBubble)
           const createTreeFn = bubblegum?.createTree || bubblegum?.create
-          if (!createTreeFn) throw new Error('createTree not available')
-          await createTreeFn(umiBubble, {
-            merkleTree: treeSigner,
-            maxDepth: 14,
-            maxBufferSize: 64,
-            canopyDepth: 12,
-            treeCreator: (umiBubble as any).identity,
-            treeDelegate: (umiBubble as any).identity,
-          } as any).sendAndConfirm(umiBubble)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          merkleTreeAddress = (treeSigner.publicKey as any).toString()
+          if (createTreeFn) {
+            await createTreeFn(umiBubble, {
+              merkleTree: treeSigner,
+              maxDepth: 14,
+              maxBufferSize: 64,
+              canopyDepth: 12,
+              treeCreator: (umiBubble as any).identity,
+              treeDelegate: (umiBubble as any).identity,
+            } as any).sendAndConfirm(umiBubble)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            merkleTreeAddress = (treeSigner.publicKey as any).toString()
+          } else {
+            const res = await fetch('/api/cnft', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'initTree', network, depth: 14, bufferSize: 64, canopyDepth: 12 })
+            })
+            const js = await res.json()
+            if (!res.ok || !js?.treeAddress) {
+              throw new Error(js?.error || 'Server initTree failed')
+            }
+            merkleTreeAddress = js.treeAddress
+          }
         } catch (e) {
           throw new Error(`Failed to create cNFT tree: ${e instanceof Error ? e.message : String(e)}`)
         }
