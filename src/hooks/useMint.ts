@@ -96,6 +96,7 @@ export function useMint() {
       endDate?: string | Date
       allowlist?: string[]
     }>
+    merkleTreeAddress?: string
   }): Promise<MintResult> => {
     if (!connected || !publicKey) {
       return {
