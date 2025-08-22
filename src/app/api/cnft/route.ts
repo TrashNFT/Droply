@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUmiBubblegum } from '@/lib/solana/umi'
-import { generateSigner } from '@metaplex-foundation/umi'
+import { generateSigner, publicKey as umiPublicKey } from '@metaplex-foundation/umi'
+import bs58 from 'bs58'
 
 // POST actions: initTree, mint
 export async function POST(request: NextRequest) {
@@ -32,7 +33,53 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'mint') {
-      return NextResponse.json({ error: 'cNFT mint not supported in this build. Please mint client-side using Umi bubblegum or upgrade server libs.' }, { status: 501 })
+      const { network = 'mainnet-beta', treeAddress, to, name = 'Compressed NFT', uri, sellerFeeBasisPoints = 0, symbol = '', collectionMint } = body || {}
+      if (!treeAddress || !to || !uri) {
+        return NextResponse.json({ error: 'Missing treeAddress, to, or uri' }, { status: 400 })
+      }
+      const umi = getUmiBubblegum(network as any)
+      const bubblegum: any = await import('@metaplex-foundation/mpl-bubblegum')
+      const argsBase: any = {
+        merkleTree: umiPublicKey(treeAddress),
+        leafOwner: umiPublicKey(to),
+        metadata: {
+          name,
+          uri,
+          symbol,
+          sellerFeeBasisPoints,
+        },
+      }
+      let res
+      try {
+        if (collectionMint) {
+          const fn = bubblegum?.mintToCollectionV1
+          if (!fn) throw new Error('mintToCollectionV1 not available')
+          res = await fn(umi, {
+            ...argsBase,
+            collectionMint: umiPublicKey(collectionMint),
+            collectionAuthority: (umi as any).identity,
+          } as any).sendAndConfirm(umi)
+        } else {
+          const fn = bubblegum?.mintV1 || bubblegum?.mint
+          if (!fn) throw new Error('mintV1 not available')
+          res = await fn(umi, argsBase).sendAndConfirm(umi)
+        }
+      } catch (e: any) {
+        const msg = e?.message || String(e)
+        try {
+          const logs = typeof e?.getLogs === 'function' ? await e.getLogs() : undefined
+          return NextResponse.json({ error: msg, logs }, { status: 500 })
+        } catch {
+          return NextResponse.json({ error: msg }, { status: 500 })
+        }
+      }
+      let signature: string
+      try {
+        signature = bs58.encode((res as any)?.signature as Uint8Array)
+      } catch {
+        signature = String((res as any)?.signature)
+      }
+      return NextResponse.json({ ok: true, signature })
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
