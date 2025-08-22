@@ -278,18 +278,33 @@ export const deployCollectionClient = async (
       if (!Array.isArray(itemUris) || itemUris.length === 0) {
         throw new Error('No metadata URIs to insert. Please upload assets or provide itemUris.')
       }
+      // Compute minimal fixed lengths to reduce CM rent
+      const maxNameLen = Math.min(32, Math.max(...itemUris.map((_, i) => (`${formData.name} #${i + 1}`.slice(0, 32)).length))) || 16
+      const maxUriLen = Math.max(...itemUris.map((u) => (u || '').length)) || 64
       const { candyMachine } = await metaplex.candyMachines().create({
         itemsAvailable: toBigNumber(itemUris.length),
         sellerFeeBasisPoints: formData.sellerFeeBasisPoints ?? 500,
         collection: { address: collectionNft.address, updateAuthority: metaplex.identity() },
         guards: baseGuards,
         ...(guardGroups && { groups: guardGroups }),
-      })
+        configLineSettings: {
+          prefixName: '',
+          nameLength: maxNameLen as any,
+          prefixUri: '',
+          uriLength: (maxUriLen as any),
+          isSequential: true as any,
+        } as any,
+      } as any)
 
-      await metaplex.candyMachines().insertItems({
-        candyMachine,
-        items: itemUris.map((uri, i) => ({ name: `${formData.name} #${i + 1}`.slice(0, 32), uri })),
-      })
+      // Insert in chunks to reduce single-tx size and allow partial progress
+      const chunkSize = 50
+      for (let i = 0; i < itemUris.length; i += chunkSize) {
+        const slice = itemUris.slice(i, i + chunkSize)
+        await metaplex.candyMachines().insertItems({
+          candyMachine,
+          items: slice.map((uri, j) => ({ name: `${formData.name} #${i + j + 1}`.slice(0, 32), uri })),
+        })
+      }
 
       candyMachineAddress = candyMachine.address.toBase58()
       collectionMintAddress = collectionNft.address.toBase58()
