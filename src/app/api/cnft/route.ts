@@ -18,14 +18,22 @@ export async function POST(request: NextRequest) {
         const bubblegum: any = await import('@metaplex-foundation/mpl-bubblegum')
         const createTreeFn = bubblegum?.createTree || bubblegum?.create
         if (!createTreeFn) throw new Error('createTree not found in mpl-bubblegum')
-        await createTreeFn(umi, {
+        const builder = createTreeFn(umi, {
           merkleTree: tree,
           maxDepth: depth,
           maxBufferSize: bufferSize,
           canopyDepth,
           treeCreator: (umi as any).identity,
           treeDelegate: (umi as any).identity,
-        } as any).sendAndConfirm(umi)
+        } as any)
+        if (builder && typeof (builder as any).sendAndConfirm === 'function') {
+          await (builder as any).sendAndConfirm(umi)
+        } else if ((umi as any)?.rpc?.send && typeof (builder as any).build === 'function') {
+          const tx = await (builder as any).build(umi)
+          await (umi as any).rpc.send(tx)
+        } else {
+          throw new Error('No supported send method for createTree builder')
+        }
         return NextResponse.json({ ok: true, treeAddress: (tree.publicKey as any).toString() })
       } catch (e: any) {
         return NextResponse.json({ error: 'initTree not available in this build', details: e?.message || String(e) }, { status: 501 })

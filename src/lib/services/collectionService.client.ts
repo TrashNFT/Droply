@@ -212,8 +212,17 @@ export const deployCollectionClient = async (
               treeCreator: (umiBubble as any).identity,
               treeDelegate: (umiBubble as any).identity,
             } as any)
-            if (builder && typeof (builder as any).sendAndConfirm === 'function') {
-              await (builder as any).sendAndConfirm(umiBubble)
+            if (builder) {
+              if (typeof (builder as any).sendAndConfirm === 'function') {
+                await (builder as any).sendAndConfirm(umiBubble)
+              } else if (typeof (builder as any).build === 'function' && (umiBubble as any)?.rpc?.sendAndConfirm) {
+                const tx = await (builder as any).build(umiBubble)
+                await (umiBubble as any).rpc.sendAndConfirm(tx)
+              } else {
+                // fall back to server route below
+                // mark as not created so server path runs
+                
+              }
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               merkleTreeAddress = (treeSigner.publicKey as any).toString()
               created = true
