@@ -18,6 +18,68 @@ export interface RealDeploymentResult {
   error?: string
 }
 
+export interface CreateCollectionOnlyResult {
+  success: boolean
+  standard: 'core' | 'legacy'
+  collectionMint: string
+  metadataUri?: string
+  error?: string
+}
+
+export const createCollectionOnlyClient = async (
+  walletAdapter: any,
+  formData: Pick<CreateCollectionFormData, 'name' | 'symbol' | 'description' | 'standard'> & { image?: string },
+  network: 'mainnet-beta' | 'devnet' = 'mainnet-beta',
+  onProgress?: (stage: string, progress: number) => void
+): Promise<CreateCollectionOnlyResult> => {
+  try {
+    if (!walletAdapter?.publicKey) throw new Error('Wallet not connected')
+
+    const metaplex = createMetaplexClient(walletAdapter, network)
+    const umi = getUmiCore('mainnet-beta', walletAdapter)
+
+    const rpcUrl = network === 'devnet'
+      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
+      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+    const bundlr = await createBundlr(walletAdapter, network, rpcUrl)
+
+    const metadataUri = await uploadJsonToBundlr(bundlr, {
+      name: formData.name,
+      symbol: formData.symbol,
+      description: formData.description,
+      image: (formData as any)?.image || '',
+    })
+
+    const standard = (formData.standard as any) === 'core' ? 'core' : 'legacy'
+
+    if (standard === 'core') {
+      onProgress?.('Creating Core collection (address only)', 55)
+      const collectionSigner = generateSigner(umi)
+      await (createCollection as any)(umi, {
+        collection: collectionSigner,
+        name: formData.name,
+        uri: metadataUri,
+        updateAuthority: (umi as any).identity,
+        payer: (umi as any).payer ?? (umi as any).identity,
+        authority: (umi as any).identity,
+      } as any).sendAndConfirm(umi)
+      return { success: true, standard, collectionMint: (collectionSigner.publicKey as any).toString(), metadataUri }
+    } else {
+      onProgress?.('Creating Legacy collection NFT (address only)', 55)
+      const { nft } = await metaplex.nfts().create({
+        name: formData.name,
+        symbol: formData.symbol,
+        uri: metadataUri,
+        isCollection: true,
+        sellerFeeBasisPoints: 0,
+      })
+      return { success: true, standard, collectionMint: nft.address.toBase58(), metadataUri }
+    }
+  } catch (e) {
+    return { success: false, standard: (formData as any)?.standard === 'core' ? 'core' : 'legacy', collectionMint: '', error: e instanceof Error ? e.message : 'Unknown error' }
+  }
+}
+
 export const deployCollectionClient = async (
   walletAdapter: any,
   formData: CreateCollectionFormData,
