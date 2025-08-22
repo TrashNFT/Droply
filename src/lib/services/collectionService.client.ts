@@ -202,18 +202,24 @@ export const deployCollectionClient = async (
           const bubblegum: any = await import('@metaplex-foundation/mpl-bubblegum')
           const treeSigner = generateSigner(umiBubble)
           const createTreeFn = bubblegum?.createTree || bubblegum?.create
+          let created = false
           if (createTreeFn) {
-            await createTreeFn(umiBubble, {
+            const builder = createTreeFn(umiBubble, {
               merkleTree: treeSigner,
               maxDepth: 14,
               maxBufferSize: 64,
               canopyDepth: 12,
               treeCreator: (umiBubble as any).identity,
               treeDelegate: (umiBubble as any).identity,
-            } as any).sendAndConfirm(umiBubble)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            merkleTreeAddress = (treeSigner.publicKey as any).toString()
-          } else {
+            } as any)
+            if (builder && typeof (builder as any).sendAndConfirm === 'function') {
+              await (builder as any).sendAndConfirm(umiBubble)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              merkleTreeAddress = (treeSigner.publicKey as any).toString()
+              created = true
+            }
+          }
+          if (!created) {
             const res = await fetch('/api/cnft', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
