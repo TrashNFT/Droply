@@ -274,8 +274,12 @@ export const deployCollectionClient = async (
           })
         : undefined
 
+      // Size CM by number of metadata URIs (handles pre-provided URIs case)
+      if (!Array.isArray(itemUris) || itemUris.length === 0) {
+        throw new Error('No metadata URIs to insert. Please upload assets or provide itemUris.')
+      }
       const { candyMachine } = await metaplex.candyMachines().create({
-        itemsAvailable: toBigNumber(assets.length),
+        itemsAvailable: toBigNumber(itemUris.length),
         sellerFeeBasisPoints: formData.sellerFeeBasisPoints ?? 500,
         collection: { address: collectionNft.address, updateAuthority: metaplex.identity() },
         guards: baseGuards,
