@@ -87,6 +87,7 @@ export function useMint() {
     metadataUri?: string
     itemUris?: string[]
     name?: string
+    coreCollectionAddress?: string
     selectedPhaseName?: string
     phases?: Array<{
       name: string
@@ -231,6 +232,8 @@ export function useMint() {
             asset: signer,
             name: name || 'Core Asset',
             uri,
+            // Attempt to attach to Core collection for wallet grouping
+            ...(params.coreCollectionAddress ? { collection: umiPublicKey(params.coreCollectionAddress) as any } : {}),
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
