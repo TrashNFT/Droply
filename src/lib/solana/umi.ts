@@ -29,14 +29,20 @@ export const getUmiCore = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', 
 }
 
 export const getUmiCandy = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
-  let umi = createBaseUmi(network)
-    .use(mplCandyMachine())
-    .use((CandyGuardPlugin as any).mplCandyGuard?.() ?? ((u: any) => u))
+  let umi = createBaseUmi(network).use(mplCandyMachine())
+  const guardPlugin = (CandyGuardPlugin as any)?.mplCandyGuard?.()
+  if (guardPlugin) {
+    umi = umi.use(guardPlugin)
+  }
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }
 
 export const getUmiBubblegum = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta', walletAdapter?: any) => {
-  let umi = createBaseUmi(network).use((BubblegumPlugin as any).mplBubblegum?.() ?? ((u: any) => u))
+  let umi = createBaseUmi(network)
+  const bubblegumPlugin = (BubblegumPlugin as any)?.mplBubblegum?.()
+  if (bubblegumPlugin) {
+    umi = umi.use(bubblegumPlugin)
+  }
   return walletAdapter ? umi.use(walletAdapterIdentity(walletAdapter)) : umi
 }
 
