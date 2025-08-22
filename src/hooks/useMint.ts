@@ -9,6 +9,7 @@ import { getUmiCore, getUmi } from '@/lib/solana/umi'
 import { create as coreCreate } from '@metaplex-foundation/mpl-core'
 import { transferSol } from '@metaplex-foundation/mpl-toolbox'
 import { generateSigner, publicKey as umiPublicKey, lamports } from '@metaplex-foundation/umi'
+import { createBundlr, uploadJsonToBundlr } from '@/lib/storage/bundlrClient'
 import toast from 'react-hot-toast'
 import bs58 from 'bs58'
 
@@ -220,13 +221,39 @@ export function useMint() {
         } as any)
         const reserved: number[] = (params as any).__reservedIndices || []
         const signers: any[] = []
+        // If a Core collection address is provided, augment metadata URIs to include collection key
+        let augmentedUris: (string | undefined)[] = new Array(mintsToDo)
+        try {
+          if (params.coreCollectionAddress) {
+            const rpcUrl = network === 'devnet'
+              ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
+              : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+            const bundlr = await createBundlr(wallet.adapter, network as any, rpcUrl)
+            for (let i = 0; i < mintsToDo; i++) {
+              const idx = reserved[i]
+              const original = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
+                ? (params as any).itemUris[idx]
+                : metadataUri
+              if (!original) continue
+              try {
+                const res = await fetch(original)
+                const json = await res.json()
+                const merged = { ...json, collection: { key: params.coreCollectionAddress } }
+                augmentedUris[i] = await uploadJsonToBundlr(bundlr as any, merged)
+              } catch {
+                augmentedUris[i] = original
+              }
+            }
+          }
+        } catch {}
         for (let i = 0; i < mintsToDo; i++) {
           const signer = generateSigner(umi)
           signers.push(signer)
           const idx = reserved[i]
-          const uri = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
+          const providedUri = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
             ? (params as any).itemUris[idx]
             : metadataUri
+          const uri = augmentedUris[i] || providedUri
           if (!uri) throw new Error('Missing metadata URI for Core mint')
           builder = builder.add(coreCreate(umi, {
             asset: signer,
