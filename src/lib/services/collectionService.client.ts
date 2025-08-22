@@ -190,6 +190,27 @@ export const deployCollectionClient = async (
 
       // Use the created collection address
       collectionMintAddress = (collectionSigner.publicKey as any).toString()
+
+      // Augment item metadata to include Core collection key so wallets can group
+      try {
+        if (Array.isArray(itemUris) && itemUris.length > 0) {
+          onProgress?.('Attaching collection to metadata', 60)
+          const augmented: string[] = []
+          for (let i = 0; i < itemUris.length; i++) {
+            try {
+              const u = itemUris[i]
+              const r = await fetch(u)
+              const j = await r.json()
+              const merged = { ...j, collection: { key: collectionMintAddress } }
+              const newUri = await uploadJsonWithRetry(merged)
+              augmented.push(newUri)
+            } catch {
+              augmented.push(itemUris[i])
+            }
+          }
+          itemUris = augmented
+        }
+      } catch {}
       mintPageUrl = `/mint/${collectionMintAddress}`
     } else if (formData.standard === 'cnft') {
       // cNFT: ensure a Merkle tree exists (auto-create if not provided)
