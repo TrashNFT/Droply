@@ -1,6 +1,6 @@
 import { PublicKey } from '@solana/web3.js'
 import { createMetaplexClient, toMxFileFromBrowserFile } from '@/lib/solana/metaplexClient'
-import { getUmiCore } from '@/lib/solana/umi'
+import { getUmiCore, getUmiBubblegum } from '@/lib/solana/umi'
 import { create as coreCreateCollection, createCollection } from '@metaplex-foundation/mpl-core'
 import { publicKey, generateSigner } from '@metaplex-foundation/umi'
 import { createBundlr, uploadFileToBundlr, uploadJsonToBundlr, fundForTotalBytes, uploadManyFiles, uploadManyJson, hashFile, getCachedUrl, setCachedUrl } from '@/lib/storage/bundlrClient'
@@ -14,6 +14,7 @@ export interface RealDeploymentResult {
   mintPageUrl: string
   itemUris?: string[]
   collectionImageUri?: string
+  merkleTreeAddress?: string
   error?: string
 }
 
@@ -191,11 +192,45 @@ export const deployCollectionClient = async (
       collectionMintAddress = (collectionSigner.publicKey as any).toString()
       mintPageUrl = `/mint/${collectionMintAddress}`
     } else if (formData.standard === 'cnft') {
-      // cNFT scaffolding: upload items only, no CMv3; save itemUris for client mint
+      // cNFT: ensure a Merkle tree exists (auto-create if not provided)
       onProgress?.('Preparing cNFT configuration', 65)
+      const umiBubble = getUmiBubblegum(network as any, walletAdapter)
+      let merkleTreeAddress = (formData as any)?.merkleTreeAddress as string | undefined
+      if (!merkleTreeAddress || merkleTreeAddress.trim().length === 0) {
+        onProgress?.('Creating cNFT Merkle tree', 68)
+        try {
+          const bubblegum: any = await import('@metaplex-foundation/mpl-bubblegum')
+          const treeSigner = generateSigner(umiBubble)
+          const createTreeFn = bubblegum?.createTree || bubblegum?.create
+          if (!createTreeFn) throw new Error('createTree not available')
+          await createTreeFn(umiBubble, {
+            merkleTree: treeSigner,
+            maxDepth: 14,
+            maxBufferSize: 64,
+            canopyDepth: 12,
+            treeCreator: (umiBubble as any).identity,
+            treeDelegate: (umiBubble as any).identity,
+          } as any).sendAndConfirm(umiBubble)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          merkleTreeAddress = (treeSigner.publicKey as any).toString()
+        } catch (e) {
+          throw new Error(`Failed to create cNFT tree: ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+
       collectionMintAddress = walletAdapter.publicKey.toString()
       candyMachineAddress = ''
       mintPageUrl = `/mint/${collectionMintAddress}`
+      // Return merkle tree for persistence and client mints
+      return {
+        success: true,
+        collectionMint: collectionMintAddress,
+        candyMachineAddress,
+        mintPageUrl,
+        itemUris,
+        collectionImageUri,
+        merkleTreeAddress,
+      }
     } else {
       // Legacy (Candy Machine v3)
       onProgress?.('Creating collection NFT', 55)
