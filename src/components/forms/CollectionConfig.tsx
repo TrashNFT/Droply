@@ -36,6 +36,9 @@ export function CollectionConfig({
     ],
   })
   const [showCardPreview, setShowCardPreview] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [preCollectionAddress, setPreCollectionAddress] = useState<string>('')
+  const [preCollectionMetaUri, setPreCollectionMetaUri] = useState<string>('')
 
   const cropToSquareUrl = async (file: File, size = 800): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -103,6 +106,41 @@ export function CollectionConfig({
       return
     }
     onNext()
+  }
+
+  const handleCreateCollectionOnly = async () => {
+    try {
+      if (!collection.name || !collection.symbol) {
+        toast.error('Name and Symbol are required')
+        return
+      }
+      setCreating(true)
+      const res = await fetch('/api/utils', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'createCollectionOnly',
+          standard: formData?.mintSettings?.standard || 'core',
+          network: formData?.mintSettings?.network || 'mainnet-beta',
+          name: collection.name,
+          symbol: collection.symbol,
+          description: collection.description || '',
+          image: collection.image || '',
+        }),
+      })
+      const js = await res.json()
+      if (!res.ok || !js?.collectionAddress) {
+        throw new Error(js?.error || 'Failed to create collection')
+      }
+      setPreCollectionAddress(js.collectionAddress)
+      setPreCollectionMetaUri(js.metadataUri || '')
+      onUpdate({ collection: { ...collection, preCollectionAddress: js.collectionAddress } })
+      toast.success('Collection created. Address copied below.')
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to create collection')
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -221,6 +259,35 @@ export function CollectionConfig({
               ))}
               <p className="text-xs text-gray-400">If you upload IPFS metadata only, these will be shown on your mint page.</p>
             </div>
+          </div>
+
+          {/* Create collection only (pre-bake address into JSON) */}
+          <div className="rounded-md border border-white/10 bg-white/5 p-3">
+            <div className="mb-2 text-sm font-medium text-white">Pre-create Collection (get address only)</div>
+            <p className="mb-3 text-xs text-gray-300">Creates the on-chain collection now so you can add <code>collection.key</code> to your JSON before upload. No items are deployed.</p>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCreateCollectionOnly} disabled={creating}>
+                {creating ? 'Creating…' : 'Create Collection Only'}
+              </Button>
+              {preCollectionAddress && (
+                <button
+                  type="button"
+                  className="rounded-md border border-white/10 px-2 py-1 text-xs text-gray-200 hover:bg-white/5"
+                  onClick={() => navigator.clipboard.writeText(preCollectionAddress)}
+                >
+                  Copy Address
+                </button>
+              )}
+            </div>
+            {preCollectionAddress && (
+              <div className="mt-2 text-xs text-gray-300 break-all">
+                <div><span className="text-gray-400">Collection Address:</span> <span className="text-white">{preCollectionAddress}</span></div>
+                <div className="mt-1"><span className="text-gray-400">Add to JSON:</span> <code className="ml-1">{"collection": {"key": "{preCollectionAddress}"}}</code></div>
+                {preCollectionMetaUri ? (
+                  <div className="mt-1"><span className="text-gray-400">Collection Metadata URI:</span> <a href={preCollectionMetaUri} target="_blank" rel="noreferrer" className="text-primary-400 underline">open</a></div>
+                ) : null}
+              </div>
+            )}
           </div>
         </div>
       </div>
