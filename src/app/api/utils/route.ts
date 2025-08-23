@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'rebuildMetadataWithCollection') {
-      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress, concurrency: userConcurrency, skipIfPresent = true, preferGateway = 'cloudflare', returnGateway = 'irys' } = body
+      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress, concurrency: userConcurrency, skipIfPresent = true, preferGateway = 'cloudflare', returnGateway = 'irys', indexOffset = 0, padTo = 0, pattern } = body
       if ((!Array.isArray(uris) || uris.length === 0) && (typeof baseUri !== 'string' || baseUri.length === 0)) {
         return NextResponse.json({ error: 'Missing uris or baseUri' }, { status: 400 })
       }
@@ -99,8 +99,16 @@ export async function POST(request: NextRequest) {
         if (to < from || to - from > 10000) {
           return NextResponse.json({ error: 'Invalid range' }, { status: 400 })
         }
-        const normalizedBase = String(baseUri).endsWith('/') ? String(baseUri) : `${String(baseUri)}/`
-        list = Array.from({ length: to - from + 1 }, (_, i) => `${normalizedBase}${from + i}${suffix}`)
+        const normalizedBase = String(baseUri || '').length ? (String(baseUri).endsWith('/') ? String(baseUri) : `${String(baseUri)}/`) : ''
+        const fmt = (n: number) => {
+          const raw = String(n + Number(indexOffset || 0))
+          const padded = padTo > 0 ? raw.padStart(Number(padTo), '0') : raw
+          if (pattern && typeof pattern === 'string' && pattern.includes('{i}')) {
+            return pattern.replaceAll('{i}', padded)
+          }
+          return `${normalizedBase}${padded}${suffix}`
+        }
+        list = Array.from({ length: to - from + 1 }, (_, i) => fmt(from + i))
       }
 
       const results: Record<string, string> = {}
