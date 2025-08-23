@@ -3,6 +3,9 @@ import { getConnection } from '@/lib/solana/umi'
 import { Metaplex, keypairIdentity } from '@metaplex-foundation/js'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { uploadMetadata } from '@/lib/arweave/client'
+import { getUmiCore } from '@/lib/solana/umi'
+import { createCollection as coreCreateCollection } from '@metaplex-foundation/mpl-core'
+import { keypairIdentity as umiKeypairIdentity, createSignerFromKeypair, generateSigner } from '@metaplex-foundation/umi'
 
 const SECRET = process.env.AIRDROP_WALLET_SECRET || ''
 
@@ -170,6 +173,58 @@ export async function POST(request: NextRequest) {
       await Promise.all(new Array(concurrency).fill(0).map(() => worker()))
 
       return NextResponse.json({ ok: true, results, errors, total: list.length, succeeded: Object.keys(results).length, failed: Object.keys(errors).length })
+    }
+
+    if (action === 'createCollectionOnly') {
+      const { standard = 'core', network = 'mainnet-beta', name, symbol, description, image } = body
+      if (!name || !symbol) return NextResponse.json({ error: 'Missing name or symbol' }, { status: 400 })
+
+      // Prepare a minimal metadata URI (server-side Arweave)
+      const meta = await uploadMetadata({ name, symbol, description: description || '', image: image || '' }, {
+        'Content-Type': 'application/json',
+        'App-Name': 'Solana-NFT-Launchpad',
+        'Action': 'create-collection-only',
+      })
+      const metadataUri = meta.url
+
+      if (standard === 'legacy') {
+        if (!kp || !metaplex) return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
+        const { nft } = await metaplex.nfts().create({
+          name,
+          symbol,
+          uri: metadataUri,
+          isCollection: true,
+          sellerFeeBasisPoints: 500,
+        } as any)
+        return NextResponse.json({ ok: true, collectionAddress: nft.address.toBase58(), standard: 'legacy', metadataUri })
+      }
+
+      // Core (MPL Core)
+      try {
+        const umi = getUmiCore(network as any)
+        if (!kp) return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
+        // Convert web3.js Keypair to Umi signer
+        const secret = Uint8Array.from(JSON.parse(SECRET))
+        const umiKeypair = (umi as any).eddsa.createKeypairFromSecretKey(secret)
+        const signer = createSignerFromKeypair(umi as any, umiKeypair)
+        ;(umi as any).use(umiKeypairIdentity(signer))
+
+        const collectionSigner = generateSigner(umi as any)
+        await (coreCreateCollection as any)(umi as any, {
+          collection: collectionSigner,
+          name,
+          uri: metadataUri,
+          updateAuthority: (umi as any).identity,
+          payer: (umi as any).payer ?? (umi as any).identity,
+          authority: (umi as any).identity,
+        } as any).sendAndConfirm(umi as any)
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const collectionAddress = (collectionSigner.publicKey as any).toString()
+        return NextResponse.json({ ok: true, collectionAddress, standard: 'core', metadataUri })
+      } catch (e: any) {
+        return NextResponse.json({ error: e?.message || 'Failed to create core collection' }, { status: 500 })
+      }
     }
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
