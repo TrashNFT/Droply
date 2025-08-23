@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
           const raw = String(n + Number(indexOffset || 0))
           const padded = padTo > 0 ? raw.padStart(Number(padTo), '0') : raw
           if (pattern && typeof pattern === 'string' && pattern.includes('{i}')) {
-            return pattern.replaceAll('{i}', padded)
+            return pattern.split('{i}').join(padded)
           }
           return `${normalizedBase}${padded}${suffix}`
         }
