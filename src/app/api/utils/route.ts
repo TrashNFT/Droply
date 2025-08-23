@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'rebuildMetadataWithCollection') {
-      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress } = body
+      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress, concurrency: userConcurrency, skipIfPresent = true, preferGateway = 'cloudflare' } = body
       if ((!Array.isArray(uris) || uris.length === 0) && (typeof baseUri !== 'string' || baseUri.length === 0)) {
         return NextResponse.json({ error: 'Missing uris or baseUri' }, { status: 400 })
       }
@@ -67,8 +67,27 @@ export async function POST(request: NextRequest) {
       const resolveUri = (u: string) => {
         const s = String(u).trim()
         if (s.startsWith('ar://')) return `https://arweave.net/${s.slice('ar://'.length)}`
-        if (s.startsWith('ipfs://')) return `https://ipfs.io/ipfs/${s.slice('ipfs://'.length)}`
+        if (s.startsWith('ipfs://')) {
+          const rest = s.slice('ipfs://'.length)
+          const [cid, ...path] = rest.split('/')
+          const suffixPath = path.length ? `/${path.join('/')}` : ''
+          if (preferGateway === 'w3s') return `https://${cid}.ipfs.w3s.link${suffixPath}`
+          if (preferGateway === 'ipfs') return `https://ipfs.io/ipfs/${cid}${suffixPath}`
+          return `https://cloudflare-ipfs.com/ipfs/${cid}${suffixPath}`
+        }
         return s
+      }
+
+      const warmArweaveGateways = async (txId: string) => {
+        const urls = [
+          `https://arweave.net/${txId}`,
+          `https://gateway.irys.xyz/${txId}`,
+          `https://ar-io.net/${txId}`,
+        ]
+        await Promise.all(urls.map(async (url) => {
+          try { await fetch(url, { method: 'HEAD', cache: 'no-store' }) } catch {}
+          try { await fetch(url, { method: 'GET', cache: 'no-store' }) } catch {}
+        }))
       }
 
       let list: string[] = []
@@ -88,7 +107,7 @@ export async function POST(request: NextRequest) {
       const errors: Record<string, string> = {}
 
       // Process in small concurrent batches to avoid serverless timeouts
-      const concurrency = 5
+      const concurrency = Math.max(1, Math.min(Number(userConcurrency ?? 12), 32))
       let index = 0
 
       const worker = async () => {
@@ -97,9 +116,24 @@ export async function POST(request: NextRequest) {
           const srcUri = list[current]
           try {
             const httpUri = resolveUri(srcUri)
-            const resp = await fetch(httpUri, { cache: 'no-store' })
+            // Robust fetch with small retries for flaky gateways
+            let resp: Response | null = null
+            let lastErr: any
+            for (let attempt = 0; attempt < 3; attempt++) {
+              try {
+                resp = await fetch(httpUri, { cache: 'no-store' })
+                if (resp.ok) break
+              } catch (e) { lastErr = e }
+              await new Promise(r => setTimeout(r, 500 * (attempt + 1)))
+            }
+            if (!resp || !resp.ok) throw new Error(`Fetch failed`)            
             if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`)
             const json = await resp.json()
+            if (skipIfPresent && json?.collection?.key && String(json.collection.key) === String(collectionAddress)) {
+              // Already has the right key; no re-upload needed
+              results[srcUri] = httpUri
+              continue
+            }
             const next = {
               ...json,
               collection: {
@@ -112,6 +146,9 @@ export async function POST(request: NextRequest) {
               'App-Name': 'Solana-NFT-Launchpad',
               'Action': 'rebuild-with-collection',
             })
+            if (uploaded?.transactionId) {
+              await warmArweaveGateways(uploaded.transactionId)
+            }
             results[srcUri] = uploaded.url
           } catch (e: any) {
             errors[srcUri] = e?.message || 'Unknown error'
