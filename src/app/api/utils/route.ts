@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'rebuildMetadataWithCollection') {
-      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress, concurrency: userConcurrency, skipIfPresent = true, preferGateway = 'cloudflare' } = body
+      const { uris = [], baseUri, start, end, suffix = '.json', collectionAddress, concurrency: userConcurrency, skipIfPresent = true, preferGateway = 'cloudflare', returnGateway = 'irys' } = body
       if ((!Array.isArray(uris) || uris.length === 0) && (typeof baseUri !== 'string' || baseUri.length === 0)) {
         return NextResponse.json({ error: 'Missing uris or baseUri' }, { status: 400 })
       }
@@ -149,7 +149,10 @@ export async function POST(request: NextRequest) {
             if (uploaded?.transactionId) {
               await warmArweaveGateways(uploaded.transactionId)
             }
-            results[srcUri] = uploaded.url
+            const outUrl = returnGateway === 'irys' && uploaded?.transactionId
+              ? `https://gateway.irys.xyz/${uploaded.transactionId}`
+              : uploaded.url
+            results[srcUri] = outUrl
           } catch (e: any) {
             errors[srcUri] = e?.message || 'Unknown error'
           }
