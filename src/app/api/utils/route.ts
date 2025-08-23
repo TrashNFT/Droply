@@ -176,16 +176,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'createCollectionOnly') {
-      const { standard = 'core', network = 'mainnet-beta', name, symbol, description, image } = body
+      const { standard = 'core', network = 'mainnet-beta', name, symbol, description, image, metadataUri: providedMetadataUri } = body
       if (!name || !symbol) return NextResponse.json({ error: 'Missing name or symbol' }, { status: 400 })
 
-      // Prepare a minimal metadata URI (server-side Arweave)
-      const meta = await uploadMetadata({ name, symbol, description: description || '', image: image || '' }, {
-        'Content-Type': 'application/json',
-        'App-Name': 'Solana-NFT-Launchpad',
-        'Action': 'create-collection-only',
-      })
-      const metadataUri = meta.url
+      // Prepare a minimal metadata URI: use provided override, otherwise upload server-side
+      let metadataUri = String(providedMetadataUri || '').trim()
+      if (!metadataUri) {
+        const meta = await uploadMetadata({ name, symbol, description: description || '', image: image || '' }, {
+          'Content-Type': 'application/json',
+          'App-Name': 'Solana-NFT-Launchpad',
+          'Action': 'create-collection-only',
+        })
+        metadataUri = meta.url
+      }
 
       if (standard === 'legacy') {
         if (!kp || !metaplex) return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
