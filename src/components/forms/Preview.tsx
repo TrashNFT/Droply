@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { Button } from '@/components/ui/Button'
-import { createCollectionOnlyClient } from '@/lib/services/collectionService.client'
 import { CheckCircle, AlertCircle, Clock } from 'lucide-react'
 import CollectionCard, { ApiCollectionRow } from '@/components/collections/CollectionCard'
 import toast from 'react-hot-toast'
@@ -48,33 +47,6 @@ export function Preview({
       toast.error(`Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setDeploying(false)
-    }
-  }
-
-  const handleCreateCollectionOnly = async () => {
-    if (!connected || !publicKey) {
-      toast.error('Connect wallet first')
-      return
-    }
-    try {
-      const res = await createCollectionOnlyClient(
-        // @ts-ignore
-        (window as any)?.solanaWalletAdapter || ({ publicKey } as any),
-        {
-          name: formData.collection?.name || 'Untitled',
-          symbol: formData.collection?.symbol || '',
-          description: formData.collection?.description || '',
-          standard: formData.mintSettings?.standard || 'core',
-          image: formData.collection?.image || formData.assets?.[0]?.preview || '',
-        },
-        (formData.mintSettings?.network as any) || 'mainnet-beta',
-        (stage, p) => console.log(`Collection-only: ${stage} - ${p}%`)
-      )
-      if (!res.success) throw new Error(res.error || 'Failed')
-      await navigator.clipboard.writeText(res.collectionMint)
-      toast.success('Collection address created and copied!')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create collection')
     }
   }
 
@@ -213,19 +185,11 @@ export function Preview({
         <Button variant="outline" onClick={onBack}>
           Back
         </Button>
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={handleCreateCollectionOnly}
-            disabled={deploying || !connected}
-          >
-            Create collection only (copy address)
-          </Button>
-          <Button 
-            onClick={handleDeploy} 
-            disabled={deploying || !connected}
-            className="flex items-center"
-          >
+        <Button 
+          onClick={handleDeploy} 
+          disabled={deploying || !connected}
+          className="flex items-center"
+        >
           {deploying ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -242,8 +206,7 @@ export function Preview({
               Deploy Collection
             </>
           )}
-          </Button>
-        </div>
+        </Button>
       </div>
     </div>
   )

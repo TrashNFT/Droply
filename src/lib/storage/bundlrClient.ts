@@ -14,20 +14,34 @@ export const createBundlr = async (walletAdapter: any, network: SupportedNetwork
   return bundlr
 }
 
-// Poll the Arweave gateway until the content is available (HTTP 200)
-const waitForAvailability = async (url: string, timeoutMs = 120_000, intervalMs = 2_000) => {
+// Preferred gateway selection and multi-gateway warmup
+const preferredGateway = String(((globalThis as any)?.process?.env?.NEXT_PUBLIC_ARWEAVE_PREFERRED_GATEWAY as string) || 'irys')
+const gatewayUrlFor = (txId: string, gw?: string) => {
+  const g = (gw || preferredGateway).toLowerCase()
+  if (g === 'irys') return `https://gateway.irys.xyz/${txId}`
+  if (g === 'ario' || g === 'ar-io') return `https://ar-io.net/${txId}`
+  return `https://arweave.net/${txId}`
+}
+
+const warmGateways = async (txId: string) => {
+  const urls = [gatewayUrlFor(txId, 'irys'), gatewayUrlFor(txId, 'arweave'), gatewayUrlFor(txId, 'ario')]
+  await Promise.all(urls.map(async (u) => {
+    try { await fetch(u, { method: 'HEAD', cache: 'no-store' }) } catch {}
+  }))
+}
+
+// Lightweight wait for preferred gateway only
+const waitPreferred = async (txId: string, timeoutMs = 20_000, intervalMs = 1_000) => {
+  const url = gatewayUrlFor(txId)
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(url, { method: 'HEAD', cache: 'no-store' })
-      if (res.ok) return
-    } catch {
-      // ignore network errors and retry
-    }
+      if (res.ok) return url
+    } catch {}
     await new Promise((r) => setTimeout(r, intervalMs))
   }
-  // Final attempt to trigger caching on some gateways
-  try { await fetch(url, { method: 'GET', cache: 'no-store' }) } catch {}
+  return url
 }
 
 const fundIfNeeded = async (bundlr: any, bytes: number, safetyMultiplier = 1.5) => {
@@ -84,9 +98,9 @@ export const uploadFileToBundlr = async (bundlr: any, file: File): Promise<strin
       throw e
     }
   }
-  const url = `https://arweave.net/${tx.id}`
-  await waitForAvailability(url)
-  return url
+  const txId = tx.id
+  await warmGateways(txId)
+  return await waitPreferred(txId)
 }
 
 export const uploadJsonToBundlr = async (bundlr: any, json: any): Promise<string> => {
@@ -107,9 +121,9 @@ export const uploadJsonToBundlr = async (bundlr: any, json: any): Promise<string
       throw e
     }
   }
-  const url = `https://arweave.net/${tx.id}`
-  await waitForAvailability(url)
-  return url
+  const txId = tx.id
+  await warmGateways(txId)
+  return await waitPreferred(txId)
 }
 
 // Upload many files concurrently with a controlled pool.
@@ -144,9 +158,9 @@ export const uploadManyFiles = async (
           throw e
         }
       }
-      const url = `https://arweave.net/${tx.id}`
-      await waitForAvailability(url)
-      urls[i] = url
+      const txId = tx.id
+      await warmGateways(txId)
+      urls[i] = await waitPreferred(txId)
       done++
       opts.onProgress?.(done, files.length)
     }
@@ -173,9 +187,9 @@ export const uploadManyJson = async (
       const tx = await bundlr.upload(data, {
         tags: [{ name: 'Content-Type', value: 'application/json' }],
       })
-      const url = `https://arweave.net/${tx.id}`
-      await waitForAvailability(url)
-      urls[i] = url
+      const txId = tx.id
+      await warmGateways(txId)
+      urls[i] = await waitPreferred(txId)
       done++
       opts.onProgress?.(done, payloads.length)
     }

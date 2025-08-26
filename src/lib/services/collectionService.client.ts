@@ -18,68 +18,6 @@ export interface RealDeploymentResult {
   error?: string
 }
 
-export interface CreateCollectionOnlyResult {
-  success: boolean
-  standard: 'core' | 'legacy'
-  collectionMint: string
-  metadataUri?: string
-  error?: string
-}
-
-export const createCollectionOnlyClient = async (
-  walletAdapter: any,
-  formData: Pick<CreateCollectionFormData, 'name' | 'symbol' | 'description' | 'standard'> & { image?: string },
-  network: 'mainnet-beta' | 'devnet' = 'mainnet-beta',
-  onProgress?: (stage: string, progress: number) => void
-): Promise<CreateCollectionOnlyResult> => {
-  try {
-    if (!walletAdapter?.publicKey) throw new Error('Wallet not connected')
-
-    const metaplex = createMetaplexClient(walletAdapter, network)
-    const umi = getUmiCore('mainnet-beta', walletAdapter)
-
-    const rpcUrl = network === 'devnet'
-      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
-      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
-    const bundlr = await createBundlr(walletAdapter, network, rpcUrl)
-
-    const metadataUri = await uploadJsonToBundlr(bundlr, {
-      name: formData.name,
-      symbol: formData.symbol,
-      description: formData.description,
-      image: (formData as any)?.image || '',
-    })
-
-    const standard = (formData.standard as any) === 'core' ? 'core' : 'legacy'
-
-    if (standard === 'core') {
-      onProgress?.('Creating Core collection (address only)', 55)
-      const collectionSigner = generateSigner(umi)
-      await (createCollection as any)(umi, {
-        collection: collectionSigner,
-        name: formData.name,
-        uri: metadataUri,
-        updateAuthority: (umi as any).identity,
-        payer: (umi as any).payer ?? (umi as any).identity,
-        authority: (umi as any).identity,
-      } as any).sendAndConfirm(umi)
-      return { success: true, standard, collectionMint: (collectionSigner.publicKey as any).toString(), metadataUri }
-    } else {
-      onProgress?.('Creating Legacy collection NFT (address only)', 55)
-      const { nft } = await metaplex.nfts().create({
-        name: formData.name,
-        symbol: formData.symbol,
-        uri: metadataUri,
-        isCollection: true,
-        sellerFeeBasisPoints: 0,
-      })
-      return { success: true, standard, collectionMint: nft.address.toBase58(), metadataUri }
-    }
-  } catch (e) {
-    return { success: false, standard: (formData as any)?.standard === 'core' ? 'core' : 'legacy', collectionMint: '', error: e instanceof Error ? e.message : 'Unknown error' }
-  }
-}
-
 export const deployCollectionClient = async (
   walletAdapter: any,
   formData: CreateCollectionFormData,
@@ -226,7 +164,19 @@ export const deployCollectionClient = async (
 
       // The Core program requires the new `collection` account to be a signer.
       // Generate it client-side and include it in the instruction.
-      const collectionSigner = generateSigner(umi)
+      // Support pre-generated offline collection keypair
+      let collectionSigner = generateSigner(umi)
+      try {
+        const preSecret = (formData as any)?.preCollectionSecret as number[] | string | undefined
+        if (preSecret) {
+          const secretArr = Array.isArray(preSecret) ? preSecret : JSON.parse(String(preSecret))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const umiKeypair = (umi as any).eddsa.createKeypairFromSecretKey(Uint8Array.from(secretArr))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const customSigner = (await import('@metaplex-foundation/umi')).createSignerFromKeypair(umi as any, umiKeypair)
+          collectionSigner = customSigner as any
+        }
+      } catch {}
 
       try {
         await (createCollection as any)(umi, {
@@ -351,6 +301,15 @@ export const deployCollectionClient = async (
         image: collectionImageUri,
       })
       const creatorPk = new PublicKey(walletAdapter.publicKey.toString())
+      // Allow pre-generated mint address
+      let overrideMint: any = undefined
+      try {
+        const preSecret = (formData as any)?.preCollectionSecret as number[] | string | undefined
+        if (preSecret) {
+          const secretArr = Array.isArray(preSecret) ? preSecret : JSON.parse(String(preSecret))
+          overrideMint = (await import('@solana/web3.js')).Keypair.fromSecretKey(Uint8Array.from(secretArr))
+        }
+      } catch {}
       const { nft: collectionNft } = await metaplex.nfts().create({
         name: formData.name,
         symbol: formData.symbol,
@@ -360,6 +319,7 @@ export const deployCollectionClient = async (
         creators: (Array.isArray((formData as any)?.creators) && (formData as any).creators.length > 0)
           ? (formData as any).creators.map((c: any) => ({ address: new PublicKey(c.address), share: Number(c.share) || 0 }))
           : [ { address: creatorPk, share: 100 } ],
+        ...(overrideMint && { mint: overrideMint }),
       })
 
       onProgress?.('Creating Candy Machine', 70)

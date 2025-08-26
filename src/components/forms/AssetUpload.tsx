@@ -34,6 +34,8 @@ export function AssetUpload({
   const [count, setCount] = useState<number>(0)
   const [pattern, setPattern] = useState<string>('{index}.json')
   const [manifestUrl, setManifestUrl] = useState<string>('')
+  const [collectionAddress, setCollectionAddress] = useState<string>('')
+  const [injecting, setInjecting] = useState<boolean>(false)
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setUploading(true)
@@ -148,6 +150,70 @@ export function AssetUpload({
     onNext()
   }
 
+  const buildUrisFromInputs = (): string[] => {
+    let uris = (formData.itemUris || []).filter((s: string) => s && s.trim() !== '')
+    if (uris.length > 0) return uris
+    // Try manifest first
+    // Note: manifest is processed during handleNext, but for ad-hoc rebuild we attempt base pattern
+    if (baseUri.trim() && count > 0) {
+      const cleanBase = baseUri.replace(/\/+$/, '')
+      const out: string[] = []
+      for (let i = 0; i < count; i++) {
+        const idx = startIndex + i
+        const name = pattern.replace('{index}', String(idx))
+        out.push(`${cleanBase}/${name}`)
+      }
+      return out
+    }
+    return uris
+  }
+
+  const handleInjectCollectionKey = async () => {
+    try {
+      const addr = collectionAddress.trim()
+      if (!addr || addr.length < 32) {
+        toast.error('Enter a valid collection address')
+        return
+      }
+      const uris = buildUrisFromInputs()
+      if (!uris || uris.length === 0) {
+        toast.error('Provide URIs, a manifest URL, or a base URI + count')
+        return
+      }
+      setInjecting(true)
+      const res = await fetch('/api/utils', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'rebuildMetadataWithCollection',
+          network: formData?.mintSettings?.network || 'mainnet-beta',
+          collectionAddress: addr,
+          uris,
+          skipIfPresent: true,
+          concurrency: 8,
+          preferGateway: 'irys',
+          returnGateway: 'irys',
+        }),
+      })
+      const js = await res.json()
+      if (!res.ok || !js?.ok) {
+        throw new Error(js?.error || 'Failed to rebuild metadata')
+      }
+      const results: Record<string, string> = js.results || {}
+      const newUris = uris.map((u) => results[u] || u)
+      if (!newUris || newUris.length === 0) {
+        throw new Error('No URIs returned')
+      }
+      // Update form
+      onUpdate({ itemUris: newUris })
+      toast.success(`Updated ${js.succeeded || newUris.length} / ${js.total || newUris.length} metadata URIs`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Injection failed')
+    } finally {
+      setInjecting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -212,6 +278,26 @@ export function AssetUpload({
             <div className="md:col-span-2">
               <label className="mb-1 block text-xs text-gray-400">Manifest URL (optional)</label>
               <input className="w-full rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1 text-white" placeholder="https://.../manifest.json" value={manifestUrl} onChange={(e) => setManifestUrl(e.target.value)} />
+            </div>
+            <div className="md:col-span-4 mt-2 rounded border border-white/10 bg-white/5 p-3">
+              <div className="mb-2 text-xs text-gray-300">Inject collection address into metadata (server will re-upload updated JSONs).</div>
+              <div className="grid gap-2 md:grid-cols-6 items-center">
+                <div className="md:col-span-4">
+                  <label className="mb-1 block text-xs text-gray-400">Collection Address</label>
+                  <input
+                    className="w-full rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1 text-white"
+                    placeholder="Enter collection address"
+                    value={collectionAddress}
+                    onChange={(e) => setCollectionAddress(e.target.value.trim())}
+                  />
+                </div>
+                <div className="md:col-span-2 flex items-end">
+                  <Button onClick={handleInjectCollectionKey} disabled={injecting}>
+                    {injecting ? 'Updating…' : 'Inject Collection Key'}
+                  </Button>
+                </div>
+              </div>
+              <p className="mt-1 text-[11px] text-gray-400">Uses your pasted URIs or the base pattern above. Existing correct keys are skipped.</p>
             </div>
           </div>
         )}
