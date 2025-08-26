@@ -8,6 +8,8 @@ import React from 'react'
 import Image from 'next/image'
 import { PLATFORM_CONFIG } from '@/config/platform'
 
+export const dynamic = 'force-dynamic'
+
 function getBaseUrl() {
   // Prefer runtime headers
   try {
@@ -30,8 +32,6 @@ async function fetchCollections(): Promise<ApiCollectionRow[]> {
   const res = await fetch(`${base}/api/collections`, {
     // Mark as ISR-capable fetch
     next: { revalidate: 30 },
-    // Avoid caching during dev hot refresh glitches
-    cache: process.env.NODE_ENV === 'development' ? 'no-store' : 'force-cache',
   })
   if (!res.ok) return []
   return res.json()

@@ -282,7 +282,7 @@ export function CollectionConfig({
             {preCollectionAddress && (
               <div className="mt-2 text-xs text-gray-300 break-all">
                 <div><span className="text-gray-400">Collection Address:</span> <span className="text-white">{preCollectionAddress}</span></div>
-                <div className="mt-1"><span className="text-gray-400">Add to JSON:</span> <code className="ml-1">{"collection": {"key": "{preCollectionAddress}"}}</code></div>
+                <div className="mt-1"><span className="text-gray-400">Add to JSON:</span> <code className="ml-1">{`"collection": { "key": "${preCollectionAddress}" }`}</code></div>
                 {preCollectionMetaUri ? (
                   <div className="mt-1"><span className="text-gray-400">Collection Metadata URI:</span> <a href={preCollectionMetaUri} target="_blank" rel="noreferrer" className="text-primary-400 underline">open</a></div>
                 ) : null}
