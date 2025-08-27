@@ -6,6 +6,7 @@ import { uploadMetadata } from '@/lib/arweave/client'
 import { getUmiCore } from '@/lib/solana/umi'
 import { createCollection as coreCreateCollection } from '@metaplex-foundation/mpl-core'
 import { keypairIdentity as umiKeypairIdentity, createSignerFromKeypair, generateSigner } from '@metaplex-foundation/umi'
+import bs58 from 'bs58'
 
 const SECRET = process.env.AIRDROP_WALLET_SECRET || ''
 
@@ -16,8 +17,20 @@ export async function POST(request: NextRequest) {
     if (!action) return NextResponse.json({ error: 'Missing action' }, { status: 400 })
 
     const { network = 'mainnet-beta' } = body
-    const connection = getConnection('mainnet-beta')
-    const kp = SECRET ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(SECRET))) : null
+    const connection = getConnection(network as any)
+    // Accept AIRDROP_WALLET_SECRET as JSON array or base58 string
+    let kp: Keypair | null = null
+    if (SECRET) {
+      try {
+        const trimmed = SECRET.trim()
+        const secretBytes = trimmed.startsWith('[')
+          ? Uint8Array.from(JSON.parse(trimmed))
+          : bs58.decode(trimmed)
+        kp = Keypair.fromSecretKey(secretBytes)
+      } catch {
+        return NextResponse.json({ error: 'Invalid AIRDROP_WALLET_SECRET format' }, { status: 500 })
+      }
+    }
     const metaplex = kp ? Metaplex.make(connection).use(keypairIdentity(kp)) : null
 
     if (action === 'burn') {
@@ -179,15 +192,24 @@ export async function POST(request: NextRequest) {
       const { standard = 'core', network = 'mainnet-beta', name, symbol, description, image, metadataUri: providedMetadataUri } = body
       if (!name || !symbol) return NextResponse.json({ error: 'Missing name or symbol' }, { status: 400 })
 
-      // Prepare a minimal metadata URI: use provided override, otherwise upload server-side
+      // Prepare a minimal metadata URI: use provided override; otherwise try server upload.
+      // If ARWEAVE_PRIVATE_KEY is not configured, fall back to using the provided image URL
+      // as a placeholder URI to avoid failing. This is sufficient for creating the on-chain
+      // collection address; creators can later update the metadata if desired.
       let metadataUri = String(providedMetadataUri || '').trim()
       if (!metadataUri) {
-        const meta = await uploadMetadata({ name, symbol, description: description || '', image: image || '' }, {
-          'Content-Type': 'application/json',
-          'App-Name': 'Solana-NFT-Launchpad',
-          'Action': 'create-collection-only',
-        })
-        metadataUri = meta.url
+        const hasArweaveKey = !!process.env.ARWEAVE_PRIVATE_KEY
+        if (hasArweaveKey) {
+          const meta = await uploadMetadata({ name, symbol, description: description || '', image: image || '' }, {
+            'Content-Type': 'application/json',
+            'App-Name': 'Solana-NFT-Launchpad',
+            'Action': 'create-collection-only',
+          })
+          metadataUri = meta.url
+        } else {
+          // Fallback: use image URL or a stable placeholder to proceed without server-side uploads
+          metadataUri = (image && String(image).trim()) || 'https://arweave.net'
+        }
       }
 
       if (standard === 'legacy') {

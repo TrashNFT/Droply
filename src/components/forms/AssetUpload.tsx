@@ -386,7 +386,7 @@ export function AssetUpload({
                 )
           }
         >
-          Next: Collection Configuration
+          Next
         </Button>
       </div>
     </div>

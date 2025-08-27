@@ -1,0 +1,3 @@
+[33m7e2357a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m chore: trigger vercel redeploy
+[33m3b2a60d[m fix: homepage dynamic rendering and cache options; repair JSON code snippet in CollectionConfig
+[33ma75a2d7[m feat: add UI flow to inject collection key into metadata; utils rebuild endpoint improvements; single-transaction platform fees for Legacy/Core; cNFT tree/mint robustness; UI mint phase gating and price display fixes

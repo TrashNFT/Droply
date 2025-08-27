@@ -33,7 +33,8 @@ export const deployCollectionClient = async (
     const metaplex = createMetaplexClient(walletAdapter, network)
     // getUmiCore is pinned to mainnet-only typings; always pass 'mainnet-beta'
     const umi = getUmiCore('mainnet-beta', walletAdapter)
-    onProgress?.('Uploading assets to Bundlr', 10)
+    const standard = (formData.standard as any) || 'legacy'
+    onProgress?.('Preparing storage client', 8)
 
     // Use Bundlr client directly to avoid storage confirm timeouts
     const rpcUrl = network === 'devnet'
@@ -67,29 +68,29 @@ export const deployCollectionClient = async (
       throw lastError
     }
 
-    // If pre-provided URIs exist, skip uploads entirely
-    let collectionImageUri: string = ''
+    // Determine collection image and whether to upload assets now
+    let collectionImageUri: string = String((formData as any)?.image || '')
     let itemUris: string[] = []
     if (formData.itemUris && formData.itemUris.length > 0) {
-      onProgress?.('Using provided metadata URIs', 50)
+      onProgress?.('Using provided metadata URIs', 40)
       itemUris = formData.itemUris
       // Try to extract a collection image from first metadata
       try {
         const res = await fetch(itemUris[0])
         const meta = await res.json()
-        collectionImageUri = meta?.image || ''
+        collectionImageUri = meta?.image || collectionImageUri || ''
       } catch {}
-    } else {
+    } else if (standard !== 'core' && assets.length > 0) {
+      // For non-Core (e.g., Legacy) or when uploading assets now, perform uploads
       // Pre-fund once and upload concurrently
-    const files = assets.map(a => a.file as File)
-    const fileSizes = await Promise.all(files.map(async f => (await f.arrayBuffer()).byteLength))
-    const estJsonSizes = files.map(() => 800)
-    const totalBytes = fileSizes.reduce((a, b) => a + b, 0) + estJsonSizes.reduce((a, b) => a + b, 0)
-    await fundForTotalBytes(bundlr, totalBytes, 1.2)
+      const files = assets.map(a => a.file as File)
+      const fileSizes = await Promise.all(files.map(async f => (await f.arrayBuffer()).byteLength))
+      const estJsonSizes = files.map(() => 800)
+      const totalBytes = fileSizes.reduce((a, b) => a + b, 0) + estJsonSizes.reduce((a, b) => a + b, 0)
+      await fundForTotalBytes(bundlr, totalBytes, 1.2)
 
-      // Upload collection image
+      // Upload collection image (use first asset)
       const firstFile = assets[0]?.file as File
-      if (!firstFile) throw new Error('At least one asset file is required')
       const [collectionImageUriLocal] = await uploadManyFiles(bundlr, [firstFile], { concurrency: 1 })
       collectionImageUri = collectionImageUriLocal
 
@@ -145,6 +146,9 @@ export const deployCollectionClient = async (
         concurrency: 8,
         onProgress: (done, total) => onProgress?.('Uploading metadata', 55 + Math.floor((done / total) * 20)),
       })
+    } else {
+      // Core with no assets/URIs: proceed without uploads; creator will add URIs later
+      onProgress?.('Skipping asset uploads (Core, assets later)', 30)
     }
 
     let candyMachineAddress = ''
@@ -152,56 +156,62 @@ export const deployCollectionClient = async (
     let mintPageUrl = ''
 
     // Branch by standard
-    if (formData.standard === 'core') {
+    if (standard === 'core') {
       onProgress?.('Creating Core collection', 55)
-      // Ensure required signers are provided as Signer objects, not just public keys
-      const metadataUri = await uploadJsonWithRetry({
-        name: formData.name,
-        symbol: formData.symbol,
-        description: formData.description,
-        image: collectionImageUri,
-      })
-
-      // The Core program requires the new `collection` account to be a signer.
-      // Generate it client-side and include it in the instruction.
-      // Support pre-generated offline collection keypair
-      let collectionSigner = generateSigner(umi)
-      try {
-        const preSecret = (formData as any)?.preCollectionSecret as number[] | string | undefined
-        if (preSecret) {
-          const secretArr = Array.isArray(preSecret) ? preSecret : JSON.parse(String(preSecret))
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const umiKeypair = (umi as any).eddsa.createKeypairFromSecretKey(Uint8Array.from(secretArr))
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const customSigner = (await import('@metaplex-foundation/umi')).createSignerFromKeypair(umi as any, umiKeypair)
-          collectionSigner = customSigner as any
-        }
-      } catch {}
-
-      try {
-        await (createCollection as any)(umi, {
-          collection: collectionSigner,
+      const preAddress = (formData as any)?.preCollectionAddress
+      if (preAddress && String(preAddress).length > 0) {
+        // Skip creation if pre-created; just use provided address
+        collectionMintAddress = String(preAddress)
+      } else {
+        // Ensure required signers are provided as Signer objects, not just public keys
+        const metadataUri = await uploadJsonWithRetry({
           name: formData.name,
-          uri: metadataUri,
-          // Required signers
-          updateAuthority: (umi as any).identity,
-          payer: (umi as any).payer ?? (umi as any).identity,
-          authority: (umi as any).identity,
-        } as any).sendAndConfirm(umi)
-      } catch (err: any) {
-        // Surface on-chain logs to the console to debug simulation failures
-        if (typeof err?.getLogs === 'function') {
-          try {
-            const logs = await err.getLogs()
-            // eslint-disable-next-line no-console
-            console.error('Core createCollection logs:', logs)
-          } catch {}
-        }
-        throw err
-      }
+          symbol: formData.symbol,
+          description: formData.description,
+          image: collectionImageUri,
+        })
 
-      // Use the created collection address
-      collectionMintAddress = (collectionSigner.publicKey as any).toString()
+        // The Core program requires the new `collection` account to be a signer.
+        // Generate it client-side and include it in the instruction.
+        // Support pre-generated offline collection keypair
+        let collectionSigner = generateSigner(umi)
+        try {
+          const preSecret = (formData as any)?.preCollectionSecret as number[] | string | undefined
+          if (preSecret) {
+            const secretArr = Array.isArray(preSecret) ? preSecret : JSON.parse(String(preSecret))
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const umiKeypair = (umi as any).eddsa.createKeypairFromSecretKey(Uint8Array.from(secretArr))
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const customSigner = (await import('@metaplex-foundation/umi')).createSignerFromKeypair(umi as any, umiKeypair)
+            collectionSigner = customSigner as any
+          }
+        } catch {}
+
+        try {
+          await (createCollection as any)(umi, {
+            collection: collectionSigner,
+            name: formData.name,
+            uri: metadataUri,
+            // Required signers
+            updateAuthority: (umi as any).identity,
+            payer: (umi as any).payer ?? (umi as any).identity,
+            authority: (umi as any).identity,
+          } as any).sendAndConfirm(umi)
+        } catch (err: any) {
+          // Surface on-chain logs to the console to debug simulation failures
+          if (typeof err?.getLogs === 'function') {
+            try {
+              const logs = await err.getLogs()
+              // eslint-disable-next-line no-console
+              console.error('Core createCollection logs:', logs)
+            } catch {}
+          }
+          throw err
+        }
+
+        // Use the created collection address
+        collectionMintAddress = (collectionSigner.publicKey as any).toString()
+      }
 
       // Augment item metadata to include Core collection key so wallets can group
       try {

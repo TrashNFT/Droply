@@ -164,5 +164,9 @@ export interface CreateCollectionFormData {
   candyMachineAddress?: string
   collectionAddress?: string
   mintPageUrl?: string
+  // Core: optional pre-created collection address to skip creation
+  preCollectionAddress?: string
+  // Core/Legacy optional: pre-generated secret key for deterministic collection mint (JSON array or string)
+  preCollectionSecret?: number[] | string
 }
 
