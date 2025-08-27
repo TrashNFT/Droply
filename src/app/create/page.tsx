@@ -17,9 +17,9 @@ import { saveDeployedCollection, removeDeployedCollection } from '@/lib/utils/co
 import { deployCollectionClient } from '@/lib/services/collectionService.client'
 
 const steps = [
-  { id: 1, name: 'Upload Assets', component: AssetUpload },
-  { id: 2, name: 'Collection Config', component: CollectionConfig },
-  { id: 3, name: 'Mint Settings', component: MintSettings },
+  { id: 1, name: 'Collection Config', component: CollectionConfig },
+  { id: 2, name: 'Mint Settings', component: MintSettings },
+  { id: 3, name: 'Upload Assets', component: AssetUpload },
   { id: 4, name: 'Preview & Deploy', component: Preview },
 ]
 
@@ -220,7 +220,7 @@ export default function CreatePage() {
                       <span className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full ring-1 ring-inset ${currentStep === s.id ? 'bg-primary-500 text-white ring-primary-400/40' : 'bg-white/5 text-gray-300 ring-white/10'}`}>{s.id}</span>
                       <div>
                         <div className="font-medium">{s.name}</div>
-                        <div className="text-xs text-gray-500">{s.id === 1 ? 'Upload your images' : s.id === 2 ? 'Basics & socials' : s.id === 3 ? 'Phases & pricing' : 'Review & deploy'}</div>
+                        <div className="text-xs text-gray-500">{s.id === 1 ? 'Basics & socials' : s.id === 2 ? 'Phases & pricing' : s.id === 3 ? 'Assets or URIs' : 'Review & deploy'}</div>
                       </div>
                     </li>
                   ))}
@@ -235,9 +235,9 @@ export default function CreatePage() {
           <section className="md:col-span-9">
             {/* Section title mirrors current step for clarity */}
             <h2 className="mb-3 text-xl font-semibold text-white">
-              {currentStep === 1 && 'Upload Assets'}
-              {currentStep === 2 && 'Collection Config'}
-              {currentStep === 3 && 'Mint Settings'}
+              {currentStep === 1 && 'Collection Config'}
+              {currentStep === 2 && 'Mint Settings'}
+              {currentStep === 3 && 'Upload Assets'}
               {currentStep === 4 && 'Preview & Deploy'}
             </h2>
             <div className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6">
