@@ -25,9 +25,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'No file provided' }, { status: 400 })
       }
       const forward = new FormData()
-      forward.append('file', file)
+      // Ensure filename is set explicitly to avoid multer "Unexpected field"
+      const arr = await file.arrayBuffer()
+      const blob = new Blob([arr], { type: file.type || 'application/octet-stream' })
+      const filename = (file as any)?.name || 'file'
+      forward.append('file', blob, filename)
       if (name) {
-        forward.append('pinataMetadata', new Blob([JSON.stringify({ name })], { type: 'application/json' }))
+        // Pinata accepts JSON string for pinataMetadata
+        forward.append('pinataMetadata', JSON.stringify({ name }))
       }
       const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',

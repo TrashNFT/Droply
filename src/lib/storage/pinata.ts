@@ -2,7 +2,10 @@ export type PinResult = { ok: boolean; cid: string; uri: string; gateway: string
 
 export async function pinFile(file: File, name?: string): Promise<PinResult> {
   const form = new FormData()
-  form.append('file', file)
+  const arr = await file.arrayBuffer()
+  const blob = new Blob([arr], { type: file.type || 'application/octet-stream' })
+  const filename = (file as any)?.name || 'file'
+  form.append('file', blob, filename)
   if (name) form.append('name', name)
   const res = await fetch('/api/pinata?action=pinFile', { method: 'POST', body: form })
   const js = await res.json()
