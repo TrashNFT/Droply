@@ -10,6 +10,7 @@ import { create as coreCreate } from '@metaplex-foundation/mpl-core'
 import { transferSol } from '@metaplex-foundation/mpl-toolbox'
 import { generateSigner, publicKey as umiPublicKey, lamports } from '@metaplex-foundation/umi'
 import { createBundlr, uploadJsonToBundlr } from '@/lib/storage/bundlrClient'
+import { pinJSON } from '@/lib/storage/pinata'
 import toast from 'react-hot-toast'
 import bs58 from 'bs58'
 
@@ -225,10 +226,16 @@ export function useMint() {
         let augmentedUris: (string | undefined)[] = new Array(mintsToDo)
         try {
           if (params.coreCollectionAddress) {
-            const rpcUrl = network === 'devnet'
-              ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
-              : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
-            const bundlr = await createBundlr(wallet.adapter, network as any, rpcUrl)
+            // Prepare Bundlr only if Pinata path fails
+            let bundlr: any = null
+            const getBundlr = async () => {
+              if (bundlr) return bundlr
+              const rpcUrl = network === 'devnet'
+                ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
+                : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+              bundlr = await createBundlr(wallet.adapter, network as any, rpcUrl)
+              return bundlr
+            }
             for (let i = 0; i < mintsToDo; i++) {
               const idx = reserved[i]
               const original = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
@@ -239,7 +246,14 @@ export function useMint() {
                 const res = await fetch(original)
                 const json = await res.json()
                 const merged = { ...json, collection: { key: params.coreCollectionAddress } }
-                augmentedUris[i] = await uploadJsonToBundlr(bundlr as any, merged)
+                // Try Pinata first, fall back to Bundlr
+                try {
+                  const r = await pinJSON(merged)
+                  augmentedUris[i] = r.gateway
+                } catch {
+                  const bl = await getBundlr()
+                  augmentedUris[i] = await uploadJsonToBundlr(bl as any, merged)
+                }
               } catch {
                 augmentedUris[i] = original
               }
