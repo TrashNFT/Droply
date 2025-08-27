@@ -88,6 +88,7 @@ export default function CreatePage() {
           merkleTreeAddress: formData.mintSettings?.merkleTreeAddress || '',
           itemUris: formData.itemUris || [],
           network,
+          storageProvider: formData.storageProvider || 'bundlr',
           standard: formData.mintSettings?.standard || 'legacy',
           preCollectionAddress: formData.collection?.preCollectionAddress || '',
         } as any,

@@ -291,8 +291,15 @@ export const deployCollectionClient = async (
             }
             return { ...base, collection: { key: collectionMintAddress } }
           })
-          const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
-          itemUris = res
+          if (provider === 'pinata') {
+            const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
+            itemUris = res
+          } else {
+            itemUris = await uploadManyJson(bundlr, metadataPayloads, {
+              concurrency: 8,
+              onProgress: (done, total) => onProgress?.('Uploading metadata', 65 + Math.floor((done / total) * 20)),
+            })
+          }
         }
       } catch {}
       mintPageUrl = `/mint/${collectionMintAddress}`
