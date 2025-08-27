@@ -29,6 +29,9 @@ export function AssetUpload({
   const [inputMode, setInputMode] = useState<'upload' | 'uris'>(
     (formData.itemUris && formData.itemUris.length > 0) ? 'uris' : 'upload'
   )
+  const [storageProvider, setStorageProvider] = useState<'bundlr' | 'pinata'>(
+    (formData?.storageProvider === 'pinata') ? 'pinata' : 'bundlr'
+  )
   const [baseUri, setBaseUri] = useState('')
   const [startIndex, setStartIndex] = useState<number>(1)
   const [count, setCount] = useState<number>(0)
@@ -147,6 +150,7 @@ export function AssetUpload({
         return
       }
     }
+    onUpdate({ storageProvider })
     onNext()
   }
 
@@ -244,6 +248,19 @@ export function AssetUpload({
             <span className="text-white">Paste metadata URIs</span>
           </label>
         </div>
+        {inputMode === 'upload' && (
+          <div className="mt-3 flex items-center gap-3">
+            <label className="text-xs text-gray-400">Storage</label>
+            <select
+              className="rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-2 py-1 text-white text-sm"
+              value={storageProvider}
+              onChange={(e)=>setStorageProvider(e.target.value as any)}
+            >
+              <option value="bundlr">Arweave (Bundlr/Irys)</option>
+              <option value="pinata">IPFS (Pinata)</option>
+            </select>
+          </div>
+        )}
         {inputMode === 'uris' ? (
           <textarea
             className="mt-3 w-full rounded border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-2 text-sm text-white"

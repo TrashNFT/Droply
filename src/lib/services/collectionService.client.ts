@@ -36,16 +36,27 @@ export const deployCollectionClient = async (
     const standard = (formData.standard as any) || 'legacy'
     onProgress?.('Preparing storage client', 8)
 
-    // Use Bundlr client directly to avoid storage confirm timeouts
-    const rpcUrl = network === 'devnet'
-      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
-      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
-    const bundlr = await createBundlr(walletAdapter, network, rpcUrl)
+    // Storage provider selection
+    const provider = (formData as any)?.storageProvider === 'pinata' ? 'pinata' : 'bundlr'
+    // Prepare Bundlr if needed
+    let bundlr: any = null
+    if (provider === 'bundlr') {
+      const rpcUrl = network === 'devnet'
+        ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || 'https://api.devnet.solana.com'
+        : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+      bundlr = await createBundlr(walletAdapter, network, rpcUrl)
+    }
+    // Lazy import pinata helper if selected
+    const pin = provider === 'pinata' ? await import('@/lib/storage/pinata') : undefined
 
     const uploadFileWithRetry = async (file: File, attempts = 3): Promise<string> => {
       let lastError: any
       for (let i = 0; i < attempts; i++) {
         try {
+          if (provider === 'pinata') {
+            const res = await (pin as any).pinFile(file, file.name)
+            return res.gateway
+          }
           return await uploadFileToBundlr(bundlr, file)
         } catch (err) {
           lastError = err
@@ -59,6 +70,10 @@ export const deployCollectionClient = async (
       let lastError: any
       for (let i = 0; i < attempts; i++) {
         try {
+          if (provider === 'pinata') {
+            const res = await (pin as any).pinJSON(json)
+            return res.gateway
+          }
           return await uploadJsonToBundlr(bundlr, json)
         } catch (err) {
           lastError = err
@@ -82,28 +97,42 @@ export const deployCollectionClient = async (
       } catch {}
     } else if (standard !== 'core' && assets.length > 0) {
       // For non-Core (e.g., Legacy) or when uploading assets now, perform uploads
-      // Pre-fund once and upload concurrently
       const files = assets.map(a => a.file as File)
-      const fileSizes = await Promise.all(files.map(async f => (await f.arrayBuffer()).byteLength))
-      const estJsonSizes = files.map(() => 800)
-      const totalBytes = fileSizes.reduce((a, b) => a + b, 0) + estJsonSizes.reduce((a, b) => a + b, 0)
-      await fundForTotalBytes(bundlr, totalBytes, 1.2)
+      if (provider === 'bundlr') {
+        // Pre-fund once and upload concurrently
+        const fileSizes = await Promise.all(files.map(async f => (await f.arrayBuffer()).byteLength))
+        const estJsonSizes = files.map(() => 800)
+        const totalBytes = fileSizes.reduce((a, b) => a + b, 0) + estJsonSizes.reduce((a, b) => a + b, 0)
+        await fundForTotalBytes(bundlr, totalBytes, 1.2)
+      }
 
       // Upload collection image (use first asset)
       const firstFile = assets[0]?.file as File
-      const [collectionImageUriLocal] = await uploadManyFiles(bundlr, [firstFile], { concurrency: 1 })
-      collectionImageUri = collectionImageUriLocal
+      if (provider === 'pinata') {
+        const r = await uploadFileWithRetry(firstFile)
+        collectionImageUri = r
+      } else {
+        const [collectionImageUriLocal] = await uploadManyFiles(bundlr, [firstFile], { concurrency: 1 })
+        collectionImageUri = collectionImageUriLocal
+      }
 
       // Upload item images concurrently
       onProgress?.('Uploading images', 30)
-      // Skip re-uploading identical files if cached
-      const preHashes = await Promise.all(files.map(f => hashFile(f)))
-      let imageUris = await uploadManyFiles(bundlr, files, {
-        concurrency: 8,
-        onProgress: (done, total) => onProgress?.('Uploading images', 30 + Math.floor((done / total) * 20)),
-      })
-      // Cache results by hash
-      preHashes.forEach((h, i) => setCachedUrl(h, imageUris[i]))
+      // Skip re-uploading identical files if cached (Bundlr path only)
+      let imageUris: string[] = []
+      if (provider === 'pinata') {
+        const uploads = files.map((f) => uploadFileWithRetry(f))
+        const res = await Promise.all(uploads)
+        imageUris = res.map(r => r)
+      } else {
+        const preHashes = await Promise.all(files.map(f => hashFile(f)))
+        imageUris = await uploadManyFiles(bundlr, files, {
+          concurrency: 8,
+          onProgress: (done, total) => onProgress?.('Uploading images', 30 + Math.floor((done / total) * 20)),
+        })
+        // Cache results by hash
+        preHashes.forEach((h, i) => setCachedUrl(h, imageUris[i]))
+      }
 
       // Build metadata payloads and upload concurrently
       onProgress?.('Uploading metadata', 55)
@@ -142,10 +171,15 @@ export const deployCollectionClient = async (
         metadataPayloads = paired.map(p => p.meta)
       }
 
-      itemUris = await uploadManyJson(bundlr, metadataPayloads, {
-        concurrency: 8,
-        onProgress: (done, total) => onProgress?.('Uploading metadata', 55 + Math.floor((done / total) * 20)),
-      })
+      if (provider === 'pinata') {
+        const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
+        itemUris = res
+      } else {
+        itemUris = await uploadManyJson(bundlr, metadataPayloads, {
+          concurrency: 8,
+          onProgress: (done, total) => onProgress?.('Uploading metadata', 55 + Math.floor((done / total) * 20)),
+        })
+      }
     } else {
       // Core with no assets/URIs: proceed without uploads; creator will add URIs later
       onProgress?.('Skipping asset uploads (Core, assets later)', 30)
