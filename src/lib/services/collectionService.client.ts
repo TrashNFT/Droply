@@ -86,6 +86,7 @@ export const deployCollectionClient = async (
     // Determine collection image and whether to upload assets now
     let collectionImageUri: string = String((formData as any)?.image || '')
     let itemUris: string[] = []
+    let uploadedImageUris: string[] = []
     if (formData.itemUris && formData.itemUris.length > 0) {
       onProgress?.('Using provided metadata URIs', 40)
       itemUris = formData.itemUris
@@ -95,8 +96,8 @@ export const deployCollectionClient = async (
         const meta = await res.json()
         collectionImageUri = meta?.image || collectionImageUri || ''
       } catch {}
-    } else if (standard !== 'core' && assets.length > 0) {
-      // For non-Core (e.g., Legacy) or when uploading assets now, perform uploads
+    } else if (assets.length > 0) {
+      // Assets provided: upload images now (for both Core and Legacy)
       const files = assets.map(a => a.file as File)
       if (provider === 'bundlr') {
         // Pre-fund once and upload concurrently
@@ -133,52 +134,52 @@ export const deployCollectionClient = async (
         // Cache results by hash
         preHashes.forEach((h, i) => setCachedUrl(h, imageUris[i]))
       }
+      uploadedImageUris = imageUris
 
-      // Build metadata payloads and upload concurrently
-      onProgress?.('Uploading metadata', 55)
-      let metadataPayloads = assets.map((asset, i) => {
-        const file = asset.file as File
-        const provided = (asset as any)?.metadata
-        const itemImageUri = imageUris[i]
-        return provided && typeof provided === 'object' ? {
-          ...provided,
-          image: provided.image || itemImageUri,
-        } : {
-          name: `${formData.name} #${i + 1}`,
-          symbol: formData.symbol,
-          description: formData.description,
-          image: itemImageUri,
-          attributes: [
-            { trait_type: 'Collection', value: formData.name },
-            { trait_type: 'Edition', value: `${i + 1}` },
-          ],
-          properties: {
-            files: [{ uri: itemImageUri, type: file.type }],
-            category: 'image',
-          },
-        }
-      })
-      // Optionally shuffle items to randomize mint order
-      if ((formData as any)?.shuffleItems) {
-        const paired = imageUris.map((uri, i) => ({ uri, meta: metadataPayloads[i] }))
-        for (let i = paired.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1))
-          ;[paired[i], paired[j]] = [paired[j], paired[i]]
-        }
-        imageUris = paired.map(p => p.uri)
-        // reorder metadata payloads accordingly
-        // @ts-ignore
-        metadataPayloads = paired.map(p => p.meta)
-      }
-
-      if (provider === 'pinata') {
-        const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
-        itemUris = res
-      } else {
-        itemUris = await uploadManyJson(bundlr, metadataPayloads, {
-          concurrency: 8,
-          onProgress: (done, total) => onProgress?.('Uploading metadata', 55 + Math.floor((done / total) * 20)),
+      // For Legacy, build and upload metadata now. For Core, we'll build JSON after we have collection key.
+      if (standard !== 'core') {
+        onProgress?.('Uploading metadata', 55)
+        let metadataPayloads = assets.map((asset, i) => {
+          const file = asset.file as File
+          const provided = (asset as any)?.metadata
+          const itemImageUri = imageUris[i]
+          return provided && typeof provided === 'object' ? {
+            ...provided,
+            image: provided.image || itemImageUri,
+          } : {
+            name: `${formData.name} #${i + 1}`,
+            symbol: formData.symbol,
+            description: formData.description,
+            image: itemImageUri,
+            attributes: [
+              { trait_type: 'Collection', value: formData.name },
+              { trait_type: 'Edition', value: `${i + 1}` },
+            ],
+            properties: {
+              files: [{ uri: itemImageUri, type: file.type }],
+              category: 'image',
+            },
+          }
         })
+        if ((formData as any)?.shuffleItems) {
+          const paired = imageUris.map((uri, i) => ({ uri, meta: metadataPayloads[i] }))
+          for (let i = paired.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1))
+            ;[paired[i], paired[j]] = [paired[j], paired[i]]
+          }
+          imageUris = paired.map(p => p.uri)
+          // @ts-ignore
+          metadataPayloads = paired.map(p => p.meta)
+        }
+        if (provider === 'pinata') {
+          const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
+          itemUris = res
+        } else {
+          itemUris = await uploadManyJson(bundlr, metadataPayloads, {
+            concurrency: 8,
+            onProgress: (done, total) => onProgress?.('Uploading metadata', 55 + Math.floor((done / total) * 20)),
+          })
+        }
       }
     } else {
       // Core with no assets/URIs: proceed without uploads; creator will add URIs later
@@ -247,7 +248,7 @@ export const deployCollectionClient = async (
         collectionMintAddress = (collectionSigner.publicKey as any).toString()
       }
 
-      // Augment item metadata to include Core collection key so wallets can group
+      // Ensure Core has metadata: if itemUris exist, attach collection; else build fresh JSON now
       try {
         if (Array.isArray(itemUris) && itemUris.length > 0) {
           onProgress?.('Attaching collection to metadata', 60)
@@ -265,6 +266,33 @@ export const deployCollectionClient = async (
             }
           }
           itemUris = augmented
+        } else if (assets.length > 0 && uploadedImageUris.length > 0) {
+          onProgress?.('Uploading metadata with collection key', 62)
+          const metadataPayloads = assets.map((asset, i) => {
+            const file = asset.file as File
+            const provided = (asset as any)?.metadata
+            const itemImageUri = uploadedImageUris[i]
+            const base = provided && typeof provided === 'object' ? {
+              ...provided,
+              image: (provided.image || itemImageUri),
+            } : {
+              name: `${formData.name} #${i + 1}`,
+              symbol: formData.symbol,
+              description: formData.description,
+              image: itemImageUri,
+              attributes: [
+                { trait_type: 'Collection', value: formData.name },
+                { trait_type: 'Edition', value: `${i + 1}` },
+              ],
+              properties: {
+                files: [{ uri: itemImageUri, type: file.type }],
+                category: 'image',
+              },
+            }
+            return { ...base, collection: { key: collectionMintAddress } }
+          })
+          const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
+          itemUris = res
         }
       } catch {}
       mintPageUrl = `/mint/${collectionMintAddress}`
