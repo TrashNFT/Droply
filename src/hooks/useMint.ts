@@ -215,6 +215,31 @@ export function useMint() {
         const mintsToDo = Math.max(1, Number(quantity) || 1)
         // Use Umi with mpl-core plugin enabled
         const umi = getUmiCore(network, wallet.adapter)
+        // Ensure Legacy TM collection exists (one-time) and fetch its mint
+        let tmCollectionMint: string | undefined = (params as any)?.tmCollectionMint
+        try {
+          if (!tmCollectionMint && (params as any)?.collectionId) {
+            const uriForCollection = metadataUri || (Array.isArray((params as any)?.itemUris) ? (params as any).itemUris[0] : undefined)
+            if (uriForCollection) {
+              const ensureRes = await fetch('/api/tm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'ensureTmCollection',
+                  network,
+                  collectionId: (params as any).collectionId,
+                  name: name || 'Collection',
+                  symbol: (params as any)?.symbol || '',
+                  uri: uriForCollection,
+                })
+              })
+              const ensureJson = await ensureRes.json().catch(()=>null)
+              if (ensureRes.ok && ensureJson?.tmCollectionMint) {
+                tmCollectionMint = ensureJson.tmCollectionMint
+              }
+            }
+          }
+        } catch {}
         // Start with platform fee transfer for all items
         let builder = transferSol(umi as any, {
           destination: umiPublicKey(PLATFORM_WALLET_ADDRESS.toString()),
@@ -290,7 +315,7 @@ export function useMint() {
 
         // After Core mint: mirror via Token Metadata if tmCollectionMint is available
         try {
-          const tmMint = (params as any)?.tmCollectionMint
+          const tmMint = tmCollectionMint || (params as any)?.tmCollectionMint
           if (tmMint && name && (augmentedUris[0] || metadataUri)) {
             const mirrorRes = await fetch('/api/tm', {
               method: 'POST',
@@ -298,7 +323,6 @@ export function useMint() {
               body: JSON.stringify({
                 action: 'mirrorMint',
                 network,
-                to: publicKey.toString(),
                 name,
                 symbol: (params as any)?.symbol || '',
                 uri: augmentedUris[0] || metadataUri,
@@ -308,23 +332,6 @@ export function useMint() {
             })
             // ignore errors; optional enhancement for explorers
             await mirrorRes.json().catch(()=>{})
-          } else if ((params as any)?.coreCollectionAddress && (params as any)?.collectionId) {
-            // Ensure TM collection exists for this core collection (one-time)
-            const uriForCollection = metadataUri || (Array.isArray((params as any)?.itemUris) ? (params as any).itemUris[0] : undefined)
-            if (uriForCollection) {
-              await fetch('/api/tm', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'ensureTmCollection',
-                  network,
-                  collectionId: (params as any).collectionId,
-                  name,
-                  symbol: (params as any)?.symbol || '',
-                  uri: uriForCollection,
-                })
-              }).catch(()=>{})
-            }
           }
         } catch {}
       } else if (standard === 'legacy') {

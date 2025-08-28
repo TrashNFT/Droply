@@ -67,9 +67,9 @@ export async function POST(request: NextRequest) {
 
     // Mirror a Core asset into Token Metadata as a Legacy NFT and verify to the TM collection
     if (action === 'mirrorMint') {
-      const { to, name, symbol = '', uri, tmCollectionMint, sellerFeeBasisPoints = 0 } = body || {}
-      if (!to || !name || !uri || !tmCollectionMint) {
-        return NextResponse.json({ error: 'Missing to, name, uri or tmCollectionMint' }, { status: 400 })
+      const { name, symbol = '', uri, tmCollectionMint, sellerFeeBasisPoints = 0 } = body || {}
+      if (!name || !uri || !tmCollectionMint) {
+        return NextResponse.json({ error: 'Missing name, uri or tmCollectionMint' }, { status: 400 })
       }
       if (!serverKp) {
         return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         symbol,
         uri,
         sellerFeeBasisPoints: Number(sellerFeeBasisPoints) || 0,
-        tokenOwner: new PublicKey(to),
+        tokenOwner: serverKp.publicKey,
         // Attach and verify collection in one go
         collection: new PublicKey(tmCollectionMint),
         collectionAuthority: serverKp,
