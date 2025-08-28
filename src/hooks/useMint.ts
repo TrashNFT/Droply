@@ -287,6 +287,46 @@ export function useMint() {
           responseSig = String((res as any)?.signature)
         }
         mintedAddress = (signers[0].publicKey as any).toString()
+
+        // After Core mint: mirror via Token Metadata if tmCollectionMint is available
+        try {
+          const tmMint = (params as any)?.tmCollectionMint
+          if (tmMint && name && (augmentedUris[0] || metadataUri)) {
+            const mirrorRes = await fetch('/api/tm', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'mirrorMint',
+                network,
+                to: publicKey.toString(),
+                name,
+                symbol: (params as any)?.symbol || '',
+                uri: augmentedUris[0] || metadataUri,
+                sellerFeeBasisPoints: (params as any)?.sellerFeeBasisPoints ?? 0,
+                tmCollectionMint: tmMint,
+              })
+            })
+            // ignore errors; optional enhancement for explorers
+            await mirrorRes.json().catch(()=>{})
+          } else if ((params as any)?.coreCollectionAddress && (params as any)?.collectionId) {
+            // Ensure TM collection exists for this core collection (one-time)
+            const uriForCollection = metadataUri || (Array.isArray((params as any)?.itemUris) ? (params as any).itemUris[0] : undefined)
+            if (uriForCollection) {
+              await fetch('/api/tm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'ensureTmCollection',
+                  network,
+                  collectionId: (params as any).collectionId,
+                  name,
+                  symbol: (params as any)?.symbol || '',
+                  uri: uriForCollection,
+                })
+              }).catch(()=>{})
+            }
+          }
+        } catch {}
       } else if (standard === 'legacy') {
         const cm = await metaplex.candyMachines().findByAddress({ address: new PublicKey(candyMachineAddress) })
         // Use phase name as Candy Guard group label when present

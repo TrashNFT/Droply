@@ -106,6 +106,8 @@ export interface Collection {
   // Core/Compressed specific
   coreCollectionAddress?: string
   merkleTreeAddress?: string
+  // Legacy TM-compatibility: optional collection mint for on-chain display
+  tmCollectionMint?: string
   // Optional item URIs for non-CM flows (Core/cNFT)
   itemUris?: string[]
   // Optional mint phases

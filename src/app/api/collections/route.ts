@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await query(
-       `INSERT INTO collections (name, symbol, description, image_url, price, items_available, items_minted, candy_machine_address, collection_address, merkle_tree_address, mint_page_url, status, creator_address, network, seller_fee_basis_points, is_mutable, start_date, standard, phases, item_uris, website, twitter, discord, sneak_peek_images, end_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+       `INSERT INTO collections (name, symbol, description, image_url, price, items_available, items_minted, candy_machine_address, collection_address, merkle_tree_address, mint_page_url, status, creator_address, network, seller_fee_basis_points, is_mutable, start_date, standard, phases, item_uris, website, twitter, discord, sneak_peek_images, end_date, tm_collection_mint)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
        ON CONFLICT (collection_address)
        DO UPDATE SET
          name = EXCLUDED.name,
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
          discord = EXCLUDED.discord,
          sneak_peek_images = EXCLUDED.sneak_peek_images,
          end_date = EXCLUDED.end_date,
+         tm_collection_mint = COALESCE(EXCLUDED.tm_collection_mint, collections.tm_collection_mint),
          updated_at = NOW()
        RETURNING *`,
       [
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
         (body as any).discord || null,
         JSON.stringify((body as any).sneakPeekImages || []),
         (body as any).endDate ? new Date((body as any).endDate) : null,
+        (body as any).tmCollectionMint || null,
       ]
     )
 

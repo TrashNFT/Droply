@@ -370,6 +370,7 @@ export default function MintPage() {
         itemUris: Array.isArray(collection.itemUris) ? collection.itemUris : [],
         merkleTreeAddress: (collection as any)?.merkleTreeAddress,
         coreCollectionAddress: (collection as any)?.id, 
+        tmCollectionMint: (collection as any)?.tmCollectionMint,
         name: collection.name,
         selectedPhaseName: selectedPhase?.name,
         phases: Array.isArray(phases) ? phases : [],
