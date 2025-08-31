@@ -89,7 +89,7 @@ const mockStats: MintStats = {
 }
 
 export default function DashboardPage() {
-  const { connected, publicKey } = useWallet()
+  const { connected, publicKey, wallet } = useWallet()
   const router = useRouter()
   const [collections, setCollections] = useState<Collection[]>([])
   const [stats, setStats] = useState<MintStats>(mockStats)
@@ -398,6 +398,44 @@ export default function DashboardPage() {
                         <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
+                      {((collection as any).standard || 'legacy') === 'core' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              if (!wallet?.adapter || !publicKey) { alert('Connect your wallet'); return }
+                              const targetCollection = (collection as any).collectionAddress || collection.id
+                              const input = prompt('Enter Core asset addresses to attach (comma or space separated):')
+                              if (!input) return
+                              const addrs = input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+                              if (addrs.length === 0) { alert('No addresses provided'); return }
+                              const { createUmi } = await import('@metaplex-foundation/umi-bundle-defaults')
+                              const coreMod: any = await import('@metaplex-foundation/mpl-core')
+                              const { walletAdapterIdentity } = await import('@metaplex-foundation/umi-signer-wallet-adapters')
+                              const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+                              const umi = createUmi(endpoint).use(coreMod.mplCore())
+                              umi.use(walletAdapterIdentity(wallet.adapter as any))
+                              let ok = 0, fail = 0
+                              for (const a of addrs) {
+                                try {
+                                  const b = coreMod.updateV1(umi as any, { asset: a, collection: String(targetCollection) })
+                                  await b.sendAndConfirm(umi as any)
+                                  ok++
+                                } catch (e: any) {
+                                  console.error('Attach failed for', a, e?.message || e)
+                                  fail++
+                                }
+                              }
+                              alert(`Attach complete. Success: ${ok}, Failed: ${fail}`)
+                            } catch (e: any) {
+                              alert(e?.message || 'Attach failed')
+                            }
+                          }}
+                        >
+                          Attach Core Collection
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -520,6 +558,39 @@ export default function DashboardPage() {
                 }}>View Stats</Button>
                 <Button variant="outline" onClick={() => router.push(c.mintPageUrl || `/mint/${c.id}`)}>View</Button>
                 <Button variant="outline" onClick={() => { setEditing(c); setMobileActionsFor(null) }}>Edit</Button>
+                {((c as any).standard || 'legacy') === 'core' && (
+                  <Button variant="outline" onClick={async () => {
+                    try {
+                      if (!wallet?.adapter || !publicKey) { alert('Connect your wallet'); return }
+                      const targetCollection = (c as any).collectionAddress || c.id
+                      const input = prompt('Enter Core asset addresses to attach (comma or space separated):')
+                      if (!input) return
+                      const addrs = input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+                      if (addrs.length === 0) { alert('No addresses provided'); return }
+                      const { createUmi } = await import('@metaplex-foundation/umi-bundle-defaults')
+                      const coreMod: any = await import('@metaplex-foundation/mpl-core')
+                      const { walletAdapterIdentity } = await import('@metaplex-foundation/umi-signer-wallet-adapters')
+                      const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+                      const umi = createUmi(endpoint).use(coreMod.mplCore())
+                      umi.use(walletAdapterIdentity(wallet.adapter as any))
+                      let ok = 0, fail = 0
+                      for (const a of addrs) {
+                        try {
+                          const b = coreMod.updateV1(umi as any, { asset: a, collection: String(targetCollection) })
+                          await b.sendAndConfirm(umi as any)
+                          ok++
+                        } catch (e: any) {
+                          console.error('Attach failed for', a, e?.message || e)
+                          fail++
+                        }
+                      }
+                      alert(`Attach complete. Success: ${ok}, Failed: ${fail}`)
+                      setMobileActionsFor(null)
+                    } catch (e: any) {
+                      alert(e?.message || 'Attach failed')
+                    }
+                  }}>Attach Core Collection</Button>
+                )}
                 <Button variant="outline" className="text-red-600" onClick={async () => { const ok = confirm('Delete this collection?'); if (!ok) return; try { const target = (c as any).collectionAddress || c.id; const res = await fetch(`/api/collections?id=${encodeURIComponent(target)}`, { method: 'DELETE' }); const js = await res.json(); if (!res.ok) throw new Error(js?.error || 'Delete failed'); try { const { removeDeployedCollection } = await import('@/lib/utils/collectionStorage'); removeDeployedCollection(String(target)) } catch {}; setCollections(prev => prev.filter(x => String(x.id) !== String(target))); setMobileActionsFor(null) } catch(e:any){ alert(e?.message || 'Delete failed') } }}>Delete</Button>
                 <Button variant="outline" onClick={() => setMobileActionsFor(null)}>Close</Button>
               </div>
