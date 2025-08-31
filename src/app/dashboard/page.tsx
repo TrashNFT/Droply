@@ -419,7 +419,24 @@ export default function DashboardPage() {
                               let ok = 0, fail = 0
                               for (const a of addrs) {
                                 try {
-                                  const b = coreMod.updateV1(umi as any, { asset: a, collection: String(targetCollection) })
+                                  // Read current asset to see if it already has a collection
+                                  let currentCollection: string | undefined
+                                  try {
+                                    const asset = await coreMod.fetchAsset(umi as any, a)
+                                    if (asset?.updateAuthority?.__kind === 'Collection') {
+                                      const k = asset.updateAuthority.fields?.[0]
+                                      if (k) currentCollection = String(k)
+                                    }
+                                  } catch {}
+
+                                  const args: any = {
+                                    asset: a,
+                                    newUpdateAuthority: coreMod.updateAuthority('Collection', [String(targetCollection)]),
+                                  }
+                                  if (currentCollection && currentCollection.length > 0) {
+                                    args.collection = currentCollection
+                                  }
+                                  const b = coreMod.update(umi as any, args)
                                   await b.sendAndConfirm(umi as any)
                                   ok++
                                 } catch (e: any) {
@@ -576,7 +593,23 @@ export default function DashboardPage() {
                       let ok = 0, fail = 0
                       for (const a of addrs) {
                         try {
-                          const b = coreMod.updateV1(umi as any, { asset: a, collection: String(targetCollection) })
+                          let currentCollection: string | undefined
+                          try {
+                            const asset = await coreMod.fetchAsset(umi as any, a)
+                            if (asset?.updateAuthority?.__kind === 'Collection') {
+                              const k = asset.updateAuthority.fields?.[0]
+                              if (k) currentCollection = String(k)
+                            }
+                          } catch {}
+
+                          const args: any = {
+                            asset: a,
+                            newUpdateAuthority: coreMod.updateAuthority('Collection', [String(targetCollection)]),
+                          }
+                          if (currentCollection && currentCollection.length > 0) {
+                            args.collection = currentCollection
+                          }
+                          const b = coreMod.update(umi as any, args)
                           await b.sendAndConfirm(umi as any)
                           ok++
                         } catch (e: any) {

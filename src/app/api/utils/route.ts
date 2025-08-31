@@ -273,16 +273,33 @@ export async function POST(request: NextRequest) {
         const signer = createSignerFromKeypair(umi as any, umiKeypair)
         ;(umi as any).use(umiKeypairIdentity(signer))
 
-        // Import update operation lazily to avoid bundling issues
-        const { updateV1 } = await import('@metaplex-foundation/mpl-core') as any
+        // Import update + helpers lazily to avoid bundling issues
+        const coreMod: any = await import('@metaplex-foundation/mpl-core')
 
         const results: Record<string, { ok: boolean; signature?: string; error?: string }> = {}
         for (const addr of assetAddresses) {
           try {
-            const builder = updateV1(umi as any, {
+            // Fetch current asset to determine whether it already has a collection.
+            let currentCollection: string | undefined
+            try {
+              const asset = await coreMod.fetchAsset(umi as any, addr)
+              if (asset?.updateAuthority?.__kind === 'Collection') {
+                const k = asset.updateAuthority.fields?.[0]
+                if (k) currentCollection = String(k)
+              }
+            } catch {}
+
+            // Build update: set newUpdateAuthority to Collection(collectionAddress)
+            const args: any = {
               asset: addr,
-              collection: collectionAddress,
-            })
+              newUpdateAuthority: coreMod.updateAuthority('Collection', [collectionAddress]),
+            }
+            // Only pass `collection` when moving between collections so Core can adjust counters
+            if (currentCollection && currentCollection.length > 0) {
+              args.collection = currentCollection
+            }
+
+            const builder = coreMod.update(umi as any, args)
             const res = await builder.sendAndConfirm(umi as any)
             results[addr] = { ok: true, signature: res.signature }
           } catch (e: any) {
