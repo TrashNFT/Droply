@@ -3,9 +3,15 @@ import { NextRequest, NextResponse } from 'next/server'
 const PINATA_JWT = process.env.PINATA_JWT || ''
 
 async function ensureAuth() {
-  if (!PINATA_JWT) {
+  if (!PINATA_JWT || PINATA_JWT.trim().length === 0) {
     throw new Error('PINATA_JWT not configured on server')
   }
+}
+
+function withTimeout(ms: number): AbortController {
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller
 }
 
 export async function POST(request: NextRequest) {
@@ -34,12 +40,14 @@ export async function POST(request: NextRequest) {
         // Pinata accepts JSON string for pinataMetadata
         forward.append('pinataMetadata', JSON.stringify({ name }))
       }
+      const controller = withTimeout(60_000)
       const res = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${PINATA_JWT}`,
         },
         body: forward,
+        signal: controller.signal,
       })
       const js = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -59,6 +67,7 @@ export async function POST(request: NextRequest) {
       if (!json || typeof json !== 'object') {
         return NextResponse.json({ error: 'Missing json payload' }, { status: 400 })
       }
+      const controller = withTimeout(60_000)
       const res = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
         method: 'POST',
         headers: {
@@ -66,6 +75,7 @@ export async function POST(request: NextRequest) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ pinataContent: json, ...(name ? { pinataMetadata: { name } } : {}) }),
+        signal: controller.signal,
       })
       const js = await res.json().catch(() => ({}))
       if (!res.ok) {

@@ -4,6 +4,12 @@ async function delay(ms: number) {
   return new Promise((res) => setTimeout(res, ms))
 }
 
+function withTimeout(ms: number): AbortController {
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller
+}
+
 export async function pinFile(file: File, name?: string, maxAttempts: number = 6): Promise<PinResult> {
   const form = new FormData()
   const arr = await file.arrayBuffer()
@@ -14,7 +20,8 @@ export async function pinFile(file: File, name?: string, maxAttempts: number = 6
   let lastErr: any
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const res = await fetch('/api/pinata?action=pinFile', { method: 'POST', body: form })
+      const controller = withTimeout(60000)
+      const res = await fetch('/api/pinata?action=pinFile', { method: 'POST', body: form, signal: controller.signal })
       const js = await res.json().catch(() => ({}))
       if (res.ok && js?.cid) return js
       // Handle rate limit / transient
@@ -24,9 +31,14 @@ export async function pinFile(file: File, name?: string, maxAttempts: number = 6
         await delay(backoff + Math.floor(Math.random() * 200))
         continue
       }
-      throw new Error(js?.error || 'pinFile failed')
+      // Non-retryable (e.g., 400/401/403/404)
+      const err: any = new Error(js?.error || 'pinFile failed')
+      err.status = res.status
+      err.nonRetryable = true
+      throw err
     } catch (e: any) {
       lastErr = e
+      if (e?.nonRetryable || e?.name === 'AbortError') throw e
       await delay(Math.min(30000, 500 * Math.pow(2, attempt)))
     }
   }
@@ -37,10 +49,12 @@ export async function pinJSON(json: any, name?: string, maxAttempts: number = 6)
   let lastErr: any
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      const controller = withTimeout(60000)
       const res = await fetch('/api/pinata?action=pinJSON', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ json, name }),
+        signal: controller.signal,
       })
       const js = await res.json().catch(() => ({}))
       if (res.ok && js?.cid) return js
@@ -50,9 +64,13 @@ export async function pinJSON(json: any, name?: string, maxAttempts: number = 6)
         await delay(backoff + Math.floor(Math.random() * 200))
         continue
       }
-      throw new Error(js?.error || 'pinJSON failed')
+      const err: any = new Error(js?.error || 'pinJSON failed')
+      err.status = res.status
+      err.nonRetryable = true
+      throw err
     } catch (e: any) {
       lastErr = e
+      if (e?.nonRetryable || e?.name === 'AbortError') throw e
       await delay(Math.min(30000, 500 * Math.pow(2, attempt)))
     }
   }
