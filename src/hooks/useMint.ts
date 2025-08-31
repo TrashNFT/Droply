@@ -6,7 +6,7 @@ import { Metaplex, walletAdapterIdentity, getMerkleProof, TransactionBuilder } f
 import { getConnection } from '@/lib/solana/umi'
 import { createMintService, PLATFORM_WALLET_ADDRESS } from '@/lib/services/mintService'
 import { getUmiCore, getUmi } from '@/lib/solana/umi'
-import { create as coreCreate } from '@metaplex-foundation/mpl-core'
+import { create as coreCreate, updateV1 as coreUpdate } from '@metaplex-foundation/mpl-core'
 import { transferSol } from '@metaplex-foundation/mpl-toolbox'
 import { generateSigner, publicKey as umiPublicKey, lamports } from '@metaplex-foundation/umi'
 import { createBundlr, uploadJsonToBundlr } from '@/lib/storage/bundlrClient'
@@ -303,6 +303,15 @@ export function useMint() {
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
+          // Ensure collection is attached even if create() ignored the optional field in some SDK versions
+          if (params.coreCollectionAddress) {
+            try {
+              builder = builder.add(coreUpdate(umi as any, {
+                asset: (signer.publicKey as any).toString(),
+                collection: String(params.coreCollectionAddress),
+              } as any))
+            } catch {}
+          }
         }
         const res = await builder.sendAndConfirm(umi)
         try {
