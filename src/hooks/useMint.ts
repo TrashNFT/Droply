@@ -313,6 +313,22 @@ export function useMint() {
         }
         mintedAddress = (signers[0].publicKey as any).toString()
 
+        // Auto-attach Core collection on the server (requires AIRDROP_WALLET_SECRET to be the update authority)
+        try {
+          if (mintedAddress && params.coreCollectionAddress) {
+            await fetch('/api/utils', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'attachCoreCollection',
+                network,
+                collectionAddress: params.coreCollectionAddress,
+                assetAddresses: [mintedAddress],
+              })
+            }).catch(() => {})
+          }
+        } catch {}
+
         // After Core mint: mirror via Token Metadata if tmCollectionMint is available
         try {
           const tmMint = tmCollectionMint || (params as any)?.tmCollectionMint
