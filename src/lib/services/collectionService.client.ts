@@ -310,17 +310,6 @@ export const deployCollectionClient = async (
             }
             itemUris = out
           } else {
-          if (provider === 'pinata') {
-            const limit = 3
-            const out: string[] = []
-            for (let i = 0; i < metadataPayloads.length; i += limit) {
-              const slice = metadataPayloads.slice(i, i + limit)
-              const res = await Promise.all(slice.map((m) => uploadJsonWithRetry(m, 8)))
-              out.push(...res)
-              await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 200)))
-            }
-            itemUris = out
-          } else {
             itemUris = await uploadManyJson(bundlr, metadataPayloads, {
               concurrency: 8,
               onProgress: (done, total) => onProgress?.('Uploading metadata', 65 + Math.floor((done / total) * 20)),
