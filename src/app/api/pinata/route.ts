@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
       })
       const js = await res.json().catch(() => ({}))
       if (!res.ok) {
-        return NextResponse.json({ error: js?.error || js?.message || 'Pinata pinFile failed' }, { status: res.status })
+        // Bubble rate limit info to client so it can backoff
+        const retryAfter = res.headers.get('retry-after') || undefined
+        return NextResponse.json({ error: js?.error || js?.message || 'Pinata pinFile failed', retryAfter }, { status: res.status })
       }
       return NextResponse.json({ ok: true, cid: js.IpfsHash, uri: `ipfs://${js.IpfsHash}`, gateway: `https://gateway.pinata.cloud/ipfs/${js.IpfsHash}` })
     }
@@ -67,7 +69,8 @@ export async function POST(request: NextRequest) {
       })
       const js = await res.json().catch(() => ({}))
       if (!res.ok) {
-        return NextResponse.json({ error: js?.error || js?.message || 'Pinata pinJSON failed' }, { status: res.status })
+        const retryAfter = res.headers.get('retry-after') || undefined
+        return NextResponse.json({ error: js?.error || js?.message || 'Pinata pinJSON failed', retryAfter }, { status: res.status })
       }
       return NextResponse.json({ ok: true, cid: js.IpfsHash, uri: `ipfs://${js.IpfsHash}`, gateway: `https://gateway.pinata.cloud/ipfs/${js.IpfsHash}` })
     }

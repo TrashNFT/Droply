@@ -122,9 +122,17 @@ export const deployCollectionClient = async (
       // Skip re-uploading identical files if cached (Bundlr path only)
       let imageUris: string[] = []
       if (provider === 'pinata') {
-        const uploads = files.map((f) => uploadFileWithRetry(f))
-        const res = await Promise.all(uploads)
-        imageUris = res.map(r => r)
+        // Throttle concurrency to avoid 429s
+        const limit = 3
+        const out: string[] = []
+        for (let i = 0; i < files.length; i += limit) {
+          const slice = files.slice(i, i + limit)
+          const res = await Promise.all(slice.map((f) => uploadFileWithRetry(f, 8)))
+          out.push(...res)
+          // Small jittered delay between batches
+          await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 200)))
+        }
+        imageUris = out
       } else {
         const preHashes = await Promise.all(files.map(f => hashFile(f)))
         imageUris = await uploadManyFiles(bundlr, files, {
@@ -292,8 +300,26 @@ export const deployCollectionClient = async (
             return { ...base, collection: { key: collectionMintAddress } }
           })
           if (provider === 'pinata') {
-            const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
-            itemUris = res
+            const limit = 3
+            const out: string[] = []
+            for (let i = 0; i < metadataPayloads.length; i += limit) {
+              const slice = metadataPayloads.slice(i, i + limit)
+              const res = await Promise.all(slice.map((m) => uploadJsonWithRetry(m, 8)))
+              out.push(...res)
+              await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 200)))
+            }
+            itemUris = out
+          } else {
+          if (provider === 'pinata') {
+            const limit = 3
+            const out: string[] = []
+            for (let i = 0; i < metadataPayloads.length; i += limit) {
+              const slice = metadataPayloads.slice(i, i + limit)
+              const res = await Promise.all(slice.map((m) => uploadJsonWithRetry(m, 8)))
+              out.push(...res)
+              await new Promise((r) => setTimeout(r, 300 + Math.floor(Math.random() * 200)))
+            }
+            itemUris = out
           } else {
             itemUris = await uploadManyJson(bundlr, metadataPayloads, {
               concurrency: 8,
