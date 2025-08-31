@@ -10,8 +10,8 @@ import { mplCore } from '@metaplex-foundation/mpl-core'
 export const getConnection = (network: 'mainnet-beta' | 'devnet' = 'mainnet-beta') => {
   const rpcUrl =
     network === 'devnet'
-      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || clusterApiUrl('devnet')
-      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
+      ? process.env.SOLANA_RPC_URL_DEV || process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV || clusterApiUrl('devnet')
+      : process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
   return new Connection(rpcUrl, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 120_000,
