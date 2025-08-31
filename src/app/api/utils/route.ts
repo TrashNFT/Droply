@@ -252,6 +252,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (action === 'attachCoreCollection') {
+      const { network = 'mainnet-beta', assetAddresses = [], collectionAddress } = body
+      if (!Array.isArray(assetAddresses) || assetAddresses.length === 0) {
+        return NextResponse.json({ error: 'Missing assetAddresses' }, { status: 400 })
+      }
+      if (!collectionAddress) {
+        return NextResponse.json({ error: 'Missing collectionAddress' }, { status: 400 })
+      }
+
+      try {
+        if (!SECRET) return NextResponse.json({ error: 'Server wallet not configured' }, { status: 500 })
+        // Build Umi with Core and server signer
+        const umi = getUmiCore(network as any)
+        const trimmed = SECRET.trim()
+        const secretBytes = trimmed.startsWith('[')
+          ? Uint8Array.from(JSON.parse(trimmed))
+          : bs58.decode(trimmed)
+        const umiKeypair = (umi as any).eddsa.createKeypairFromSecretKey(secretBytes)
+        const signer = createSignerFromKeypair(umi as any, umiKeypair)
+        ;(umi as any).use(umiKeypairIdentity(signer))
+
+        // Import update operation lazily to avoid bundling issues
+        const { updateV1 } = await import('@metaplex-foundation/mpl-core') as any
+
+        const results: Record<string, { ok: boolean; signature?: string; error?: string }> = {}
+        for (const addr of assetAddresses) {
+          try {
+            const builder = updateV1(umi as any, {
+              asset: addr,
+              collection: collectionAddress,
+            })
+            const res = await builder.sendAndConfirm(umi as any)
+            results[addr] = { ok: true, signature: res.signature }
+          } catch (e: any) {
+            results[addr] = { ok: false, error: e?.message || 'Failed to attach collection' }
+          }
+        }
+        return NextResponse.json({ ok: true, results })
+      } catch (e: any) {
+        return NextResponse.json({ error: e?.message || 'Failed to attach core collection' }, { status: 500 })
+      }
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (error) {
     console.error('Utils API error:', error)
