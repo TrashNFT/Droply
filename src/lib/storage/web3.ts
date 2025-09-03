@@ -1,4 +1,4 @@
-export type PinResult = { ok: boolean; cid: string; uri: string; gateway: string }
+export type PutResult = { ok: boolean; cid: string; uri: string; gateway: string }
 
 async function delay(ms: number) {
   return new Promise((res) => setTimeout(res, ms))
@@ -10,29 +10,29 @@ function withTimeout(ms: number): AbortController {
   return controller
 }
 
-export async function pinFile(file: File, name?: string, maxAttempts: number = 6): Promise<PinResult> {
-  const form = new FormData()
+export async function putFile(file: File, name?: string, maxAttempts: number = 6): Promise<PutResult> {
   const arr = await file.arrayBuffer()
   const blob = new Blob([arr], { type: file.type || 'application/octet-stream' })
-  const filename = (file as any)?.name || 'file'
-  form.append('file', blob, filename)
-  if (name) form.append('name', name)
   let lastErr: any
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
+      const form = new FormData()
+      form.append('file', new Blob([arr], { type: file.type || 'application/octet-stream' }), (file as any)?.name || 'file')
       const controller = withTimeout(60000)
-      const res = await fetch('/api/pinata?action=pinFile', { method: 'POST', body: form, signal: controller.signal })
+      const res = await fetch('/api/web3?action=putFile', {
+        method: 'POST',
+        body: form,
+        signal: controller.signal,
+      })
       const js = await res.json().catch(() => ({}))
       if (res.ok && js?.cid) return js
-      // Handle rate limit / transient
       if (res.status === 429 || res.status >= 500) {
         const ra = Number(res.headers.get('retry-after') || 0)
         const backoff = ra > 0 ? ra * 1000 : Math.min(30000, 500 * Math.pow(2, attempt))
         await delay(backoff + Math.floor(Math.random() * 200))
         continue
       }
-      // Non-retryable (e.g., 400/401/403/404)
-      const baseMsg = js?.error || js?.message || 'pinFile failed'
+      const baseMsg = js?.error || js?.message || 'putFile failed'
       const err: any = new Error(`${baseMsg}${res.status ? ` (status ${res.status})` : ''}`)
       err.status = res.status
       err.nonRetryable = true
@@ -43,15 +43,15 @@ export async function pinFile(file: File, name?: string, maxAttempts: number = 6
       await delay(Math.min(30000, 500 * Math.pow(2, attempt)))
     }
   }
-  throw lastErr || new Error('pinFile failed')
+  throw lastErr || new Error('putFile failed')
 }
 
-export async function pinJSON(json: any, name?: string, maxAttempts: number = 6): Promise<PinResult> {
+export async function putJSON(json: any, name?: string, maxAttempts: number = 6): Promise<PutResult> {
   let lastErr: any
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const controller = withTimeout(60000)
-      const res = await fetch('/api/pinata?action=pinJSON', {
+      const res = await fetch('/api/web3?action=putJSON', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ json, name }),
@@ -65,7 +65,7 @@ export async function pinJSON(json: any, name?: string, maxAttempts: number = 6)
         await delay(backoff + Math.floor(Math.random() * 200))
         continue
       }
-      const baseMsg = js?.error || js?.message || 'pinJSON failed'
+      const baseMsg = js?.error || js?.message || 'putJSON failed'
       const err: any = new Error(`${baseMsg}${res.status ? ` (status ${res.status})` : ''}`)
       err.status = res.status
       err.nonRetryable = true
@@ -76,7 +76,7 @@ export async function pinJSON(json: any, name?: string, maxAttempts: number = 6)
       await delay(Math.min(30000, 500 * Math.pow(2, attempt)))
     }
   }
-  throw lastErr || new Error('pinJSON failed')
+  throw lastErr || new Error('putJSON failed')
 }
 
 
