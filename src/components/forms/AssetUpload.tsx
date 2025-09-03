@@ -29,8 +29,8 @@ export function AssetUpload({
   const [inputMode, setInputMode] = useState<'upload' | 'uris'>(
     (formData.itemUris && formData.itemUris.length > 0) ? 'uris' : 'upload'
   )
-  const [storageProvider, setStorageProvider] = useState<'bundlr' | 'pinata' | 'web3'>((
-    formData?.storageProvider === 'pinata' || formData?.storageProvider === 'web3'
+  const [storageProvider, setStorageProvider] = useState<'bundlr' | 'pinata' | 'web3' | 'nft'>((
+    formData?.storageProvider === 'pinata' || formData?.storageProvider === 'web3' || formData?.storageProvider === 'nft'
   ) ? formData.storageProvider : 'bundlr')
   const [baseUri, setBaseUri] = useState('')
   const [startIndex, setStartIndex] = useState<number>(1)
@@ -259,6 +259,7 @@ export function AssetUpload({
               <option value="bundlr">Arweave (Bundlr/Irys)</option>
               <option value="pinata">IPFS (Pinata)</option>
               <option value="web3">IPFS (Web3.Storage)</option>
+              <option value="nft">IPFS (NFT.Storage)</option>
             </select>
           </div>
         )}

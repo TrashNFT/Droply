@@ -39,7 +39,7 @@ export const deployCollectionClient = async (
     // Storage provider selection
     const provider = (formData as any)?.storageProvider === 'pinata'
       ? 'pinata'
-      : ( (formData as any)?.storageProvider === 'web3' ? 'web3' : 'bundlr')
+      : ( (formData as any)?.storageProvider === 'web3' ? 'web3' : ( (formData as any)?.storageProvider === 'nft' ? 'nft' : 'bundlr'))
     // Prepare Bundlr if needed
     let bundlr: any = null
     if (provider === 'bundlr') {
@@ -51,6 +51,7 @@ export const deployCollectionClient = async (
     // Lazy import storage helpers
     const pin = provider === 'pinata' ? await import('@/lib/storage/pinata') : undefined
     const w3 = provider === 'web3' ? await import('@/lib/storage/web3') : undefined
+    const nft = provider === 'nft' ? await import('@/lib/storage/nft') : undefined
 
     const uploadFileWithRetry = async (file: File, attempts = 3): Promise<string> => {
       let lastError: any
@@ -61,6 +62,9 @@ export const deployCollectionClient = async (
             return res.gateway
           } else if (provider === 'web3') {
             const res = await (w3 as any).putFile(file, file.name)
+            return res.gateway
+          } else if (provider === 'nft') {
+            const res = await (nft as any).putFile(file, file.name)
             return res.gateway
           }
           return await uploadFileToBundlr(bundlr, file)
@@ -81,6 +85,9 @@ export const deployCollectionClient = async (
             return res.gateway
           } else if (provider === 'web3') {
             const res = await (w3 as any).putJSON(json)
+            return res.gateway
+          } else if (provider === 'nft') {
+            const res = await (nft as any).putJSON(json)
             return res.gateway
           }
           return await uploadJsonToBundlr(bundlr, json)
@@ -118,7 +125,7 @@ export const deployCollectionClient = async (
 
       // Upload collection image (use first asset)
       const firstFile = assets[0]?.file as File
-      if (provider === 'pinata') {
+      if (provider !== 'bundlr') {
         const r = await uploadFileWithRetry(firstFile)
         collectionImageUri = r
       } else {
@@ -130,7 +137,7 @@ export const deployCollectionClient = async (
       onProgress?.('Uploading images', 30)
       // Skip re-uploading identical files if cached (Bundlr path only)
       let imageUris: string[] = []
-      if (provider === 'pinata') {
+      if (provider !== 'bundlr') {
         // Throttle concurrency to avoid 429s
         const limit = 3
         const out: string[] = []
@@ -188,7 +195,7 @@ export const deployCollectionClient = async (
           // @ts-ignore
           metadataPayloads = paired.map(p => p.meta)
         }
-        if (provider === 'pinata') {
+        if (provider !== 'bundlr') {
           const res = await Promise.all(metadataPayloads.map((m) => uploadJsonWithRetry(m)))
           itemUris = res
         } else {
@@ -308,7 +315,7 @@ export const deployCollectionClient = async (
             }
             return { ...base, collection: { key: collectionMintAddress } }
           })
-          if (provider === 'pinata') {
+          if (provider !== 'bundlr') {
             const limit = 3
             const out: string[] = []
             for (let i = 0; i < metadataPayloads.length; i += limit) {
