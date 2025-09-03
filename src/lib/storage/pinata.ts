@@ -32,7 +32,8 @@ export async function pinFile(file: File, name?: string, maxAttempts: number = 6
         continue
       }
       // Non-retryable (e.g., 400/401/403/404)
-      const baseMsg = js?.error || js?.message || 'pinFile failed'
+      const rawMsg = js?.error || js?.message || 'pinFile failed'
+      const baseMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg)
       const err: any = new Error(`${baseMsg}${res.status ? ` (status ${res.status})` : ''}`)
       err.status = res.status
       err.nonRetryable = true
@@ -65,7 +66,8 @@ export async function pinJSON(json: any, name?: string, maxAttempts: number = 6)
         await delay(backoff + Math.floor(Math.random() * 200))
         continue
       }
-      const baseMsg = js?.error || js?.message || 'pinJSON failed'
+      const rawMsg = js?.error || js?.message || 'pinJSON failed'
+      const baseMsg = typeof rawMsg === 'string' ? rawMsg : JSON.stringify(rawMsg)
       const err: any = new Error(`${baseMsg}${res.status ? ` (status ${res.status})` : ''}`)
       err.status = res.status
       err.nonRetryable = true
