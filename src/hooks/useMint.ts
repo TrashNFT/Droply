@@ -301,17 +301,7 @@ export function useMint() {
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
-          // Ensure collection is attached even if create() ignored the optional field in some SDK versions
-          if (params.coreCollectionAddress) {
-            try {
-              builder = builder.add(coreUpdate(umi as any, {
-                asset: signer.publicKey as any,
-                // Attach by setting the asset's update authority to the Collection.
-                // Do NOT pass a `collection` argument when the asset had no previous collection.
-                newUpdateAuthority: coreUpdateAuthority('Collection', [umiPublicKey(String(params.coreCollectionAddress))]),
-              } as any))
-            } catch {}
-          }
+          // Defer collection attachment to server after mint to avoid client-side update errors on some assets.
         }
         const res = await builder.sendAndConfirm(umi)
         try {
