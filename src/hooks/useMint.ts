@@ -188,6 +188,7 @@ export function useMint() {
           throw new Error((reserveJson?.error || 'Reservation failed') + extra)
         }
         reservationId = reserveJson?.reservationId
+        try { localStorage.setItem('pending-mint-res-id', JSON.stringify(reservationId)) } catch {}
         // Use reserved indices for unique metadata when available
         const indices: number[] | undefined = Array.isArray(reserveJson?.reservedIndices) ? reserveJson.reservedIndices : (
           typeof reserveJson?.reservedStart === 'number' ? [reserveJson.reservedStart] : undefined
@@ -509,6 +510,7 @@ export function useMint() {
               })
             } catch {}
           }
+          try { localStorage.removeItem('pending-mint-res-id') } catch {}
         }
 
         // If reservation was not created for some reason, attempt direct confirm insert
@@ -539,6 +541,18 @@ export function useMint() {
 
     } catch (error) {
       console.error('Mint error:', error)
+      // Mark reservation as failed so pending gets released
+      try {
+        const raw = localStorage.getItem('pending-mint-res-id')
+        const reservationId = raw ? JSON.parse(raw) : undefined
+        if (reservationId) {
+          await fetch('/api/mint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'fail', reservationId }),
+          })
+        }
+      } catch {}
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown mint error'

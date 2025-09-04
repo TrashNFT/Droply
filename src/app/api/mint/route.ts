@@ -269,15 +269,26 @@ export async function POST(request: NextRequest) {
       }
       // Normalize signature to base58 string and clamp length to 200 chars for DB safety
       const normalizedSig = typeof signature === 'string' ? signature.slice(0, 200) : Buffer.from(signature).toString('base64').slice(0, 200)
-      const updated = await query(
+      const updated = await query<{ collection_id: string; quantity: number }>(
         `UPDATE mint_transactions 
          SET status = 'confirmed', transaction_signature = $1, nft_address = $2, updated_at = NOW() 
-         WHERE id = $3::uuid`,
+         WHERE id = $3::uuid
+         RETURNING collection_id, quantity`,
         [normalizedSig, nftAddress || null, reservationId]
       )
-      if ((updated as any)?.rowCount === 0) {
+      if (!updated.rows?.length) {
         return NextResponse.json({ ok: false, error: 'Reservation not found' }, { status: 404 })
       }
+      // Decrement reserved count now that this reservation is finalized
+      try {
+        const row = updated.rows[0]
+        await query(
+          `UPDATE collections
+           SET items_reserved = GREATEST(items_reserved - $2, 0), updated_at = NOW()
+           WHERE id = $1`,
+          [row.collection_id, Number(row.quantity) || 0]
+        )
+      } catch {}
       // Update collection.items_minted to reflect latest total of confirmed mints only
       try {
         await query(
@@ -302,7 +313,26 @@ export async function POST(request: NextRequest) {
       if (!reservationId) {
         return NextResponse.json({ error: 'Missing reservationId' }, { status: 400 })
       }
-      await query(`UPDATE mint_transactions SET status = 'failed', updated_at = NOW() WHERE id = $1`, [reservationId])
+      // Find reservation details to release reserved items
+      let details: { collection_id: string; quantity: number } | null = null
+      try {
+        const r = await query<{ collection_id: string; quantity: number }>(
+          `SELECT collection_id, quantity FROM mint_transactions WHERE id = $1::uuid`,
+          [reservationId]
+        )
+        if (r.rows?.length) details = r.rows[0]
+      } catch {}
+      await query(`UPDATE mint_transactions SET status = 'failed', updated_at = NOW() WHERE id = $1::uuid`, [reservationId])
+      if (details) {
+        try {
+          await query(
+            `UPDATE collections
+             SET items_reserved = GREATEST(items_reserved - $2, 0), updated_at = NOW()
+             WHERE id = $1`,
+            [details.collection_id, Number(details.quantity) || 0]
+          )
+        } catch {}
+      }
       return NextResponse.json({ ok: true })
     }
 
