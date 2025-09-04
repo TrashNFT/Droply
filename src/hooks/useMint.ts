@@ -319,6 +319,8 @@ export function useMint() {
             asset: signer,
             name: name || 'Core Asset',
             uri,
+            // Set collection membership at creation time per MPL Core docs
+            ...(params.coreCollectionAddress ? { updateAuthority: coreUpdateAuthority('Collection', [umiPublicKey(String(params.coreCollectionAddress))]) } : {}),
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
