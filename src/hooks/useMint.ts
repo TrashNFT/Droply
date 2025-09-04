@@ -89,7 +89,10 @@ export function useMint() {
     metadataUri?: string
     itemUris?: string[]
     name?: string
+    image?: string
+    description?: string
     coreCollectionAddress?: string
+    tmCollectionMint?: string
     selectedPhaseName?: string
     phases?: Array<{
       name: string
@@ -266,7 +269,24 @@ export function useMint() {
               const original = (Array.isArray((params as any)?.itemUris) && typeof idx === 'number')
                 ? (params as any).itemUris[idx]
                 : metadataUri
-              if (!original) continue
+              if (!original) {
+                // Build minimal JSON on the fly
+                const minimal = {
+                  name: params.name || `Core Asset ${i + 1}`,
+                  symbol: (params as any)?.symbol || '',
+                  description: params.description || '',
+                  image: params.image || '',
+                  collection: { key: params.coreCollectionAddress },
+                }
+                try {
+                  const r = await pinJSON(minimal)
+                  augmentedUris[i] = r.gateway
+                } catch {
+                  const bl = await getBundlr()
+                  augmentedUris[i] = await uploadJsonToBundlr(bl as any, minimal)
+                }
+                continue
+              }
               try {
                 const res = await fetch(original)
                 const json = await res.json()

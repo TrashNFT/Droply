@@ -372,6 +372,8 @@ export default function MintPage() {
         coreCollectionAddress: (collection as any)?.collectionAddress || (collection as any)?.coreCollectionAddress,
         tmCollectionMint: (collection as any)?.tmCollectionMint || (collection as any)?.tm_collection_mint,
         name: collection.name,
+        image: collection.image,
+        description: collection.description,
         selectedPhaseName: selectedPhase?.name,
         phases: Array.isArray(phases) ? phases : [],
       })
