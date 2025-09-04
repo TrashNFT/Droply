@@ -6,7 +6,7 @@ import { Metaplex, walletAdapterIdentity, getMerkleProof, TransactionBuilder } f
 import { getConnection } from '@/lib/solana/umi'
 import { createMintService, PLATFORM_WALLET_ADDRESS } from '@/lib/services/mintService'
 import { getUmiCore, getUmi } from '@/lib/solana/umi'
-import { create as coreCreate, updateV1 as coreUpdate } from '@metaplex-foundation/mpl-core'
+import { create as coreCreate, update as coreUpdate, updateAuthority as coreUpdateAuthority } from '@metaplex-foundation/mpl-core'
 import { transferSol } from '@metaplex-foundation/mpl-toolbox'
 import { generateSigner, publicKey as umiPublicKey, lamports } from '@metaplex-foundation/umi'
 import { createBundlr, uploadJsonToBundlr } from '@/lib/storage/bundlrClient'
@@ -298,8 +298,6 @@ export function useMint() {
             asset: signer,
             name: name || 'Core Asset',
             uri,
-            // Attempt to attach to Core collection for wallet grouping
-            ...(params.coreCollectionAddress ? { collection: umiPublicKey(params.coreCollectionAddress) as any } : {}),
             authority: (umi as any).identity,
             payer: (umi as any).payer ?? (umi as any).identity,
           } as any))
@@ -307,8 +305,10 @@ export function useMint() {
           if (params.coreCollectionAddress) {
             try {
               builder = builder.add(coreUpdate(umi as any, {
-                asset: (signer.publicKey as any).toString(),
-                collection: String(params.coreCollectionAddress),
+                asset: signer.publicKey as any,
+                // Attach by setting the asset's update authority to the Collection.
+                // Do NOT pass a `collection` argument when the asset had no previous collection.
+                newUpdateAuthority: coreUpdateAuthority('Collection', [umiPublicKey(String(params.coreCollectionAddress))]),
               } as any))
             } catch {}
           }
