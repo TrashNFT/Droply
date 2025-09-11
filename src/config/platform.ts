@@ -17,7 +17,7 @@ export const PLATFORM_CONFIG = {
   
   // Platform name and branding
   PLATFORM_NAME: "Droply",
-  PLATFORM_DESCRIPTION: "Droply — No‑code NFT Launchpad for Solana using Candy Machine v3",
+  PLATFORM_DESCRIPTION: "Droply — Your Gateway to NFT Launches",
   PLATFORM_LOGO_SRC: "/logo.png", // Place your logo file under `public/logo.png`
   PLATFORM_FAVICON_SRC: "/logo.png",
   
