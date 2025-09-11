@@ -46,9 +46,34 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
 
+    // Generate/normalize slug if provided
+    const rawSlug = (body as any)?.slug as string | undefined
+    const baseForSlug = rawSlug && rawSlug.trim().length > 0 ? rawSlug : body.name
+    let slug: string | null = null
+    if (baseForSlug && typeof baseForSlug === 'string') {
+      const normalized = baseForSlug
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\-\s_]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+      slug = normalized.length > 0 ? normalized.slice(0, 64) : null
+      if (slug) {
+        // Ensure uniqueness by appending a suffix if needed
+        try {
+          const existing = await query('SELECT 1 FROM collections WHERE slug = $1 LIMIT 1', [slug])
+          if (existing.rows.length > 0) {
+            const suffix = Math.random().toString(36).slice(2, 6)
+            slug = `${slug}-${suffix}`
+          }
+        } catch {}
+      }
+    }
+
     const result = await query(
-       `INSERT INTO collections (name, symbol, description, image_url, price, items_available, items_minted, candy_machine_address, collection_address, merkle_tree_address, mint_page_url, status, creator_address, network, seller_fee_basis_points, is_mutable, start_date, standard, phases, item_uris, website, twitter, discord, sneak_peek_images, end_date, tm_collection_mint)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+       `INSERT INTO collections (name, symbol, description, image_url, price, items_available, items_minted, candy_machine_address, collection_address, merkle_tree_address, mint_page_url, status, creator_address, network, seller_fee_basis_points, is_mutable, start_date, standard, phases, item_uris, website, twitter, discord, sneak_peek_images, end_date, tm_collection_mint, slug)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
        ON CONFLICT (collection_address)
        DO UPDATE SET
          name = EXCLUDED.name,
@@ -76,6 +101,7 @@ export async function POST(request: NextRequest) {
          sneak_peek_images = EXCLUDED.sneak_peek_images,
          end_date = EXCLUDED.end_date,
          tm_collection_mint = COALESCE(EXCLUDED.tm_collection_mint, collections.tm_collection_mint),
+         slug = COALESCE(EXCLUDED.slug, collections.slug),
          updated_at = NOW()
        RETURNING *`,
       [
@@ -105,6 +131,7 @@ export async function POST(request: NextRequest) {
         JSON.stringify((body as any).sneakPeekImages || []),
         (body as any).endDate ? new Date((body as any).endDate) : null,
         (body as any).tmCollectionMint || null,
+        slug,
       ]
     )
 
@@ -141,13 +168,14 @@ export async function PUT(request: NextRequest) {
     if (Array.isArray(body.phases)) push('phases = $X', JSON.stringify(body.phases))
     if (typeof body.candyMachineAddress === 'string') push('candy_machine_address = $X', body.candyMachineAddress)
     if (typeof body.collectionAddress === 'string') push('collection_address = $X', body.collectionAddress)
+    if (typeof (body as any).slug === 'string') push('slug = $X', (body as any).slug?.trim() || null)
 
     // Replace $X placeholders with correct $1..$N
     const sets = fields.map((f, i) => f.replace('$X', `$${i + 1}`))
     values.push(target)
     if (sets.length === 0) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
-    const sql = `UPDATE collections SET ${sets.join(', ')}, updated_at = NOW() WHERE id::text = $${values.length} OR collection_address = $${values.length} RETURNING *`
+    const sql = `UPDATE collections SET ${sets.join(', ')}, updated_at = NOW() WHERE id::text = $${values.length} OR collection_address = $${values.length} OR slug = $${values.length} RETURNING *`
     const res = await query(sql, values)
     return NextResponse.json(res.rows[0] || null)
   } catch (error) {
@@ -161,9 +189,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const creatorAddress = searchParams.get('creator')
     const address = searchParams.get('address')
+    const slug = searchParams.get('slug')
 
     let result
-     if (address && address.trim().length > 0) {
+     if ((address && address.trim().length > 0) || (slug && slug.trim().length > 0)) {
       result = await query(
         `SELECT c.*, COALESCE(s.minted,0) as items_minted
          FROM collections c
@@ -173,9 +202,9 @@ export async function GET(request: NextRequest) {
            WHERE status = 'confirmed'
            GROUP BY collection_id
          ) s ON s.collection_id = c.id
-         WHERE c.collection_address = $1 OR c.id::text = $1
+         WHERE c.collection_address = $1 OR c.id::text = $1 OR c.slug = $1
          LIMIT 1`,
-        [address]
+        [address || slug]
       )
       const row = result.rows[0]
       if (!row) return NextResponse.json(null)

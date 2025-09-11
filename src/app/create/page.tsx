@@ -106,6 +106,7 @@ export default function CreatePage() {
       const now = new Date()
           const collection = {
         id: deployment.collectionMint,
+        slug: formData.collection?.slug || undefined,
         name: formData.collection?.name || '',
         symbol: formData.collection?.symbol || '',
         description: formData.collection?.description || '',
@@ -136,11 +137,12 @@ export default function CreatePage() {
             symbol: collection.symbol,
             description: collection.description,
             image: collection.image || deployment.collectionImageUri || '',
+            slug: formData.collection?.slug || undefined,
             price: collection.price,
             itemsAvailable: collection.itemsAvailable,
             candyMachineAddress: collection.candyMachineAddress,
             collectionAddress: deployment.collectionMint,
-            mintPageUrl: collection.mintPageUrl,
+            mintPageUrl: (formData.collection?.slug ? `/mint/${formData.collection.slug}` : collection.mintPageUrl),
             creatorAddress: collection.creatorAddress,
             network: collection.network,
             sellerFeeBasisPoints: formData.mintSettings?.sellerFeeBasisPoints || 500,

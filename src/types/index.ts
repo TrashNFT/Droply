@@ -85,6 +85,7 @@ export interface UploadedAsset {
 
 export interface Collection {
   id: string
+  slug?: string
   name: string
   symbol: string
   description: string
@@ -145,6 +146,7 @@ export interface CreateCollectionFormData {
   name: string
   symbol: string
   description: string
+  slug?: string
   price: number
   itemsAvailable: number
   sellerFeeBasisPoints: number

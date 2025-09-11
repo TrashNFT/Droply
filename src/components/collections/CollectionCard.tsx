@@ -18,6 +18,7 @@ export interface ApiCollectionRow {
   candy_machine_address?: string | null
   collection_address?: string | null
   mint_page_url?: string | null
+  slug?: string | null
   status?: string
   creator_address?: string
   network?: 'mainnet-beta' | 'devnet'
@@ -70,7 +71,7 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({ collection, clas
   const liveWindow = anyPhaseLive || baseWindowLive
   const isMintingNow = liveWindow && notSoldOut && (collection.status === 'deployed' || collection.status === 'minting' || !collection.status)
 
-  const mintHref = collection.mint_page_url || (collection.collection_address ? `/mint/${collection.collection_address}` : collection.id ? `/mint/${collection.id}` : '#')
+  const mintHref = collection.mint_page_url || (collection?.slug ? `/mint/${collection.slug}` : (collection.collection_address ? `/mint/${collection.collection_address}` : collection.id ? `/mint/${collection.id}` : '#'))
 
   return (
     <div className={cn('group relative overflow-hidden rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-sm transition hover:shadow-lg', className)}>

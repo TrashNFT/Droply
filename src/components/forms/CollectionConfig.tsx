@@ -27,6 +27,7 @@ export function CollectionConfig({
     name: formData.collection?.name || '',
     symbol: formData.collection?.symbol || '',
     description: formData.collection?.description || '',
+    slug: formData.collection?.slug || '',
     image: formData.collection?.image || '',
     website: formData.collection?.website || '',
     twitter: formData.collection?.twitter || '',
@@ -226,6 +227,25 @@ export function CollectionConfig({
               placeholder="MAC"
               maxLength={10}
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-300">
+              Custom URL Slug (optional)
+            </label>
+            <input
+              type="text"
+              value={collection.slug}
+              onChange={(e) => {
+                const v = e.target.value
+                // Allow only lowercase letters, numbers, dashes
+                const normalized = v.toLowerCase().replace(/[^a-z0-9-\s_]/g, '').replace(/[\s_]+/g, '-').slice(0, 64)
+                handleInputChange('slug', normalized)
+              }}
+              className="w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="e.g., my-awesome-mint"
+            />
+            <p className="mt-1 text-xs text-gray-400">Final URL: {typeof window !== 'undefined' ? window.location.origin : ''}/mint/{collection.slug || '<generated>'}</p>
           </div>
 
           <div className="relative">

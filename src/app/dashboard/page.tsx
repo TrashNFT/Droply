@@ -132,6 +132,7 @@ export default function DashboardPage() {
         // Normalize server rows to Collection shape
         const apiCollections = apiRows.map((row: any) => ({
           id: row.collection_address || row.id,
+          slug: row.slug || undefined,
           name: row.name,
           symbol: row.symbol,
           description: row.description || '',
@@ -140,7 +141,7 @@ export default function DashboardPage() {
           itemsAvailable: Number(row.items_available || 0),
           itemsMinted: Number(row.items_minted || 0),
           candyMachineAddress: row.candy_machine_address || undefined,
-          mintPageUrl: row.mint_page_url || (row.collection_address ? `/mint/${row.collection_address}` : undefined),
+          mintPageUrl: row.mint_page_url || (row.slug ? `/mint/${row.slug}` : (row.collection_address ? `/mint/${row.collection_address}` : undefined)),
           status: (row.status || 'deployed') as any,
           createdAt: new Date(row.created_at || Date.now()),
           updatedAt: new Date(row.updated_at || Date.now()),

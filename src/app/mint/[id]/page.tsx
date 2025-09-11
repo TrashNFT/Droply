@@ -160,37 +160,43 @@ export default function MintPage() {
     const load = async () => {
       const id = Array.isArray(params.id) ? params.id[0] : params.id
       try {
-        const res = await fetch(`/api/collections?address=${id}`)
+        // Try resolving by address first, then slug as fallback
+        let res = await fetch(`/api/collections?address=${encodeURIComponent(id)}`)
         const data = await res.json()
-        if (data) {
+        let row = data
+        if (!res.ok || !row) {
+          res = await fetch(`/api/collections?slug=${encodeURIComponent(id)}`)
+          row = await res.json()
+        }
+        if (row) {
           setCollection({
-            id: data.collection_address || id,
-            name: data.name,
-            symbol: data.symbol,
-            description: data.description || '',
-            image: normalizeUri(data.image_url) || 'https://via.placeholder.com/600x600',
-            price: Number(data.price || 0),
-            itemsAvailable: Number(data.items_available || 0),
-            itemsMinted: Number(data.items_minted || 0),
-            candyMachineAddress: data.candy_machine_address || '',
-            mintPageUrl: data.mint_page_url || `/mint/${id}`,
-            status: (data.status || 'minting') as any,
-            createdAt: new Date(data.created_at || Date.now()),
-            updatedAt: new Date(data.updated_at || Date.now()),
-            creatorAddress: data.creator_address || '',
-            network: (data.network || 'mainnet-beta') as any,
-            standard: (data.standard || 'legacy') as any,
-            itemUris: data.item_uris || [],
-            merkleTreeAddress: (data as any)?.merkle_tree_address || undefined,
-            coreCollectionAddress: (data as any)?.collection_address || (data as any)?.core_collection_address || undefined,
-            phases: data.phases || [],
-            startDate: data.start_date || null,
-            endDate: data.end_date || null,
+            id: row.collection_address || id,
+            name: row.name,
+            symbol: row.symbol,
+            description: row.description || '',
+            image: normalizeUri(row.image_url) || 'https://via.placeholder.com/600x600',
+            price: Number(row.price || 0),
+            itemsAvailable: Number(row.items_available || 0),
+            itemsMinted: Number(row.items_minted || 0),
+            candyMachineAddress: row.candy_machine_address || '',
+            mintPageUrl: row.mint_page_url || `/mint/${row.slug || id}`,
+            status: (row.status || 'minting') as any,
+            createdAt: new Date(row.created_at || Date.now()),
+            updatedAt: new Date(row.updated_at || Date.now()),
+            creatorAddress: row.creator_address || '',
+            network: (row.network || 'mainnet-beta') as any,
+            standard: (row.standard || 'legacy') as any,
+            itemUris: row.item_uris || [],
+            merkleTreeAddress: (row as any)?.merkle_tree_address || undefined,
+            coreCollectionAddress: (row as any)?.collection_address || (row as any)?.core_collection_address || undefined,
+            phases: row.phases || [],
+            startDate: row.start_date || null,
+            endDate: row.end_date || null,
           })
           // Socials (if present in DB)
-          setLinks({ website: data.website || data.site || undefined, twitter: data.twitter || undefined, discord: data.discord || undefined })
+          setLinks({ website: row.website || row.site || undefined, twitter: row.twitter || undefined, discord: row.discord || undefined })
           // Sneak peek: fetch first few metadata images if item_uris provided
-          const urisRaw: string[] = Array.isArray(data.item_uris) ? data.item_uris.slice(0, 6) : []
+          const urisRaw: string[] = Array.isArray(row.item_uris) ? row.item_uris.slice(0, 6) : []
           const uris: string[] = urisRaw.map((u: string) => normalizeUri(u)).filter(Boolean) as string[]
           if (uris.length > 0) {
             try {

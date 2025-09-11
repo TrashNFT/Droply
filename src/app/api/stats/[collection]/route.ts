@@ -5,7 +5,7 @@ export async function GET(request: NextRequest, { params }: { params: { collecti
   try {
     const collectionAddress = params.collection
     if (!collectionAddress) return NextResponse.json({ error: 'Missing collection address' }, { status: 400 })
-    const col = await query(`SELECT id FROM collections WHERE collection_address = $1 OR id::text = $1 LIMIT 1`, [collectionAddress])
+    const col = await query(`SELECT id FROM collections WHERE collection_address = $1 OR id::text = $1 OR slug = $1 LIMIT 1`, [collectionAddress])
     if (!col.rows.length) return NextResponse.json({ error: 'Collection not found' }, { status: 404 })
     const collectionId = col.rows[0].id
 
