@@ -147,8 +147,8 @@ export default function MintPage() {
           return now >= s && now <= e
         })
       if (liveIdxs.length === 0) { setSelectedPhaseIdx(null); return }
-      const walletPk = publicKey?.toString() || ''
-      const wl = liveIdxs.find(({ p }: { p: any }) => Array.isArray(p.allowlist) && p.allowlist.includes(walletPk))
+      const walletPk = (publicKey?.toString() || '').trim()
+      const wl = liveIdxs.find(({ p }: { p: any }) => Array.isArray(p.allowlist) && (p.allowlist || []).map((a: string) => a.trim()).includes(walletPk))
       if (wl) { setSelectedPhaseIdx(wl.i); return }
       const pub = liveIdxs.find(({ p }: { p: any }) => !Array.isArray(p.allowlist) || p.allowlist.length === 0)
       if (pub) { setSelectedPhaseIdx(pub.i); return }
@@ -630,6 +630,9 @@ export default function MintPage() {
                     const label = p.name || (isWL ? 'WL' : 'Public')
                     const mintedInPhase = phaseCounts[label] || 0
                     const cap = Number(p.maxSupply || 0) > 0 ? Number(p.maxSupply) : undefined
+                    const walletStr = (publicKey?.toString() || '').trim()
+                    const normalizedList = (Array.isArray(p.allowlist) ? p.allowlist : []).map((a: string) => a.trim())
+                    const eligible = isWL ? normalizedList.includes(walletStr) : true
                     return (
                       <div key={i} className="flex items-center justify-between px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -645,7 +648,7 @@ export default function MintPage() {
                           <span>{ended ? 'Ended' : live ? 'Live' : 'Starts in'}</span>
                           {/* Eligibility pill when wallet is connected */}
                           {connected && isWL && (
-                            p.allowlist.includes(publicKey?.toString() || '') ? (
+                            eligible ? (
                               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30">Eligible</span>
                             ) : (
                               live && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 ring-1 ring-inset ring-red-500/30">Not eligible</span>
@@ -687,7 +690,11 @@ export default function MintPage() {
                       const e = p.endDate ? new Date(p.endDate).getTime() : Infinity
                       return now >= s && now <= e
                     })
-                    const userIn = (p: any) => Array.isArray(p.allowlist) && p.allowlist.includes(publicKey?.toString() || '')
+                    const userIn = (p: any) => {
+                      if (!Array.isArray(p.allowlist)) return false
+                      const walletStr = (publicKey?.toString() || '').trim()
+                      return (p.allowlist || []).map((a: string) => a.trim()).includes(walletStr)
+                    }
                     const wl = livePhases.find((p: any) => userIn(p))
                     const pub = livePhases.find((p: any) => !Array.isArray(p.allowlist) || p.allowlist.length === 0)
                     return (
@@ -701,7 +708,9 @@ export default function MintPage() {
                               const i = phases.indexOf(p)
                               const isSelected = selectedPhaseIdx === i
                               const label = p.name || (Array.isArray(p.allowlist) && p.allowlist.length > 0 ? 'WL' : 'Public')
-                              const eligible = Array.isArray(p.allowlist) ? p.allowlist.includes(publicKey?.toString() || '') : true
+                              const eligible = Array.isArray(p.allowlist)
+                                ? (p.allowlist || []).map((a: string) => a.trim()).includes((publicKey?.toString() || '').trim())
+                                : true
                               return (
                                 <button
                                   key={idx}
