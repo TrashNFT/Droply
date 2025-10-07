@@ -4,6 +4,7 @@ import './globals.css'
 import { WalletProvider } from '@/components/wallet/WalletProvider'
 import { Toaster } from 'react-hot-toast'
 import { PLATFORM_CONFIG } from '@/config/platform'
+import { Analytics } from '@vercel/analytics/react'
 
 const fontSans = Plus_Jakarta_Sans({ subsets: ['latin'], weight: ['400','500','600','700','800'] })
 
@@ -26,6 +27,7 @@ export default function RootLayout({
         <WalletProvider>
           {children}
           <Toaster position="top-right" />
+          <Analytics />
         </WalletProvider>
       </body>
     </html>
