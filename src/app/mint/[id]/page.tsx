@@ -651,7 +651,7 @@ export default function MintPage() {
                             eligible ? (
                               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-inset ring-emerald-500/30">Eligible</span>
                             ) : (
-                              live && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 ring-1 ring-inset ring-red-500/30">Not eligible</span>
+                              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300 ring-1 ring-inset ring-red-500/30">Not eligible</span>
                             )
                           )}
                         </div>
@@ -718,7 +718,7 @@ export default function MintPage() {
                                   className={`rounded-full px-3 py-1 text-xs ring-1 ring-inset transition ${isSelected ? 'bg-primary-600 text-white ring-primary-500' : 'bg-white/5 text-gray-200 ring-white/10 hover:bg-white/10'}`}
                                   title={eligible ? 'Eligible' : 'Not eligible'}
                                 >
-                                  {label}{Array.isArray(p.allowlist) && p.allowlist.length > 0 ? (eligible ? '' : ' (Not eligible)') : ''}
+                                  {label}{Array.isArray(p.allowlist) && p.allowlist.length > 0 ? (eligible ? ' (Eligible)' : ' (Not eligible)') : ''}
                                 </button>
                               )
                             })}
